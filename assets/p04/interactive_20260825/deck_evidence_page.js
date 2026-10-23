@@ -565,7 +565,7 @@
   // 缓存戳只在 http 下加。file:// 的本地文件加载器对查询串的处理不可靠，
   // 带上 ?t=… 可能整张图都取不到；本地文件也没有 HTTP 缓存要绕。
   const IS_FILE = location.protocol === "file:";
-  const bust = () => (IS_FILE ? "" : "../d1_deck_evidence_slice__index.html?t=" + Date.now());
+  const bust = () => (IS_FILE || PLATE_SOURCE === "frozen" ? "" : "?t=" + Date.now());
   // 相机源按帧总线的 5fps 拉；Blender 是冻结的一张，慢慢轮询即可，
   // 重渲之后不用刷新页面就会自己换上。
   const LIVE_INTERVAL_MS = PLATE_SRC.interval;

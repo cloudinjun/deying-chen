@@ -767,7 +767,7 @@
          用 <script> 而不是 fetch 读 json：浏览器禁止 file:// 页面发起 fetch，
          而这份 demo 要能双击 html 直接打开。 -->
     <script src="interactive_20260825/workspace_overlay.js"></script>
-    <script src="interactive_20260825/deck_evidence_page.js"></script>
+    <script src="interactive_20260825/deck_evidence_page.js?v=20261022-pages"></script>
     <script src="interactive_20260825/deck_presentation.js"></script>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -834,7 +834,7 @@
       </div>
     </section>
     <script>
-      (function () {
+      document.addEventListener("DOMContentLoaded", function () {
         var lab = document.getElementById("faceLab");
         var close = document.getElementById("faceLabClose");
         if (window.__showFaceLab) lab.hidden = false;
@@ -849,7 +849,7 @@
           if (e.key === "F") lab.hidden = !lab.hidden;
           if (e.key === "I") ilab.hidden = !ilab.hidden;
         });
-      })();
+      });
     </script>
 
     <!-- 图标台：?icons=1 或 Shift+I -->
