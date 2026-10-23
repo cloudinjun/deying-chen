@@ -1,0 +1,17 @@
+{
+  "asset": "Manner Tango GKL-J-S-100 PTE/K 80",
+  "manufacturer": "Manner",
+  "manufacturer_reference": "301799",
+  "supplier": "CasterHQ",
+  "supplier_product_url": "https://casterhq.com/products/manner-tango-gkl-j-s-100-pte-k-80-medical-caster",
+  "manufacturer_step_download_url": "https://cdn.shopify.com/s/files/1/0929/4191/0328/files/manner-301799-step_8b1b0e19-9edf-4b50-b099-50fad7d49bde.zip?v=1778519017",
+  "original_file": "assets/Manner_301799_original.step",
+  "normalized_preview_file": "assets/caster-normalized.3dm",
+  "photo_file": "assets/Manner_301799_photo.jpg",
+  "units": "millimetres",
+  "catalog_wheel_diameter_mm": 100,
+  "catalog_total_height_mm": 148,
+  "measured_step_height_mm": 146.267235552223,
+  "normalization": "Translated to mounting-axis XY origin and floor Z=0; no scaling. Mesh reduction and tiny-face cleanup are preview-only operations.",
+  "license_note": "Source model remains attributed to its manufacturer and supplier; verify redistribution terms before public distribution."
+}

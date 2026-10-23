@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEIKKU — Shape Together</title>
+<meta name="description" content="A browser co-creation game: meet Meikku, shape a living form together, come back and find what you both remember." />
+<link rel="icon" type="image/png" sizes="32x32" href="meikku-app-icon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="meikku-app-icon-192.png" />
+<link rel="apple-touch-icon" href="meikku-app-icon-180.png" />
+<link rel="stylesheet" href="style.css?v=23" />
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="view"></canvas>
+
+  <!-- kept moments, pinned to the wall like drawings in a workshop -->
+  <div id="wallPins" aria-hidden="true"></div>
+
+  <!-- character lives in the same space as the form -->
+  <div id="charLayer">
+    <div id="meikku" class="meikku" data-state="ARRIVING">
+      <svg id="meikkuRig" viewBox="0 0 260 310" width="260" height="310" aria-hidden="true"></svg>
+    </div>
+    <div id="bubble" class="bubble" hidden><span id="bubbleText"></span></div>
+  </div>
+
+  <!-- brand-mode autoplay: a short loop that feels already in progress -->
+  <section id="autoplayHud" class="autoplay-hud" hidden aria-live="polite">
+    <div class="autoplay-kicker">
+      <span id="autoplayClaim">SCRIPTED-LIVE TUTORIAL</span>
+      <span aria-hidden="true">LOOP ∞</span>
+    </div>
+    <div id="blueprintNote" class="blueprint-note" data-bp="0">
+      <svg class="blueprint-sketch" viewBox="0 0 120 112" aria-hidden="true">
+        <path class="bp-line bp-pot" d="M18 18H102M24 22L34 96H86L96 22" />
+        <path class="bp-line bp-vase" d="M44 14H76M48 18V34C48 44 30 46 30 70C30 92 43 102 60 102C77 102 90 92 90 70C90 46 72 44 72 34V18" />
+        <path class="bp-line bp-cup" d="M30 30H78V92H30ZM78 46C104 42 106 80 78 78" />
+      </svg>
+      <div class="blueprint-copy">
+        <span id="autoplayEyebrow">A ROUGH IDEA</span>
+        <strong id="autoplayBlueprint">OPEN VESSEL</strong>
+        <span id="autoplayPhase">Meikku is reading the dashes.</span>
+      </div>
+    </div>
+    <div class="autoplay-track" aria-hidden="true"><i id="autoplayProgress"></i></div>
+    <p id="autoplayCaption" class="autoplay-caption">Already started. Never quite finished.</p>
+  </section>
+
+  <div id="demoHand" class="demo-hand" hidden aria-hidden="true">
+    <img src="cursor-press.svg" alt="" />
+    <span id="demoHandLabel">HUMAN DETOUR</span>
+  </div>
+
+  <!-- top bar -->
+  <header id="topbar">
+    <div class="tb-left">
+      <span id="formName" class="chip">Folded Corner 01</span>
+    </div>
+    <div class="tb-right">
+      <button id="btnLang" class="tbtn" title="中文 / English">中·EN</button>
+      <button id="btnInspect" class="tbtn" title="来源、记忆与意图 (I)">?</button>
+    </div>
+  </header>
+
+  <!-- hint: one line, no panels -->
+  <div id="hint" class="hint" hidden></div>
+
+  <!-- bottom bar -->
+  <footer id="bottombar">
+    <button id="btnMemory" class="tbtn wide" hidden>MEMORY</button>
+    <div id="tools" class="tools">
+      <button class="tool" data-tool="pull" title="按住拖动：往外拉">PULL</button>
+      <button class="tool" data-tool="press" title="按住拖动：往里压">PRESS</button>
+      <button class="tool" data-tool="smooth" data-locked="1" hidden title="涂抹：减弱局部变化">SMOOTH</button>
+      <button class="tool" data-tool="point" data-locked="1" hidden title="点一下：让 Meikku 看那里">POINT</button>
+    </div>
+    <button id="btnUndo" class="tbtn wide" hidden>UNDO</button>
+  </footer>
+
+  <!-- shared moment card -->
+  <div id="momentCard" class="card" hidden>
+    <div class="card-head">KEEP THIS MOMENT?</div>
+    <div class="card-body">
+      <div class="shots">
+        <figure><img id="shotBefore" alt="before" /><figcaption>BEFORE</figcaption></figure>
+        <figure><img id="shotAfter" alt="after" /><figcaption>AFTER</figcaption></figure>
+      </div>
+      <input id="momentName" class="namefield" maxlength="28" placeholder="名字（可不填）" />
+    </div>
+    <div class="card-foot">
+      <button id="momentKeep" class="tbtn solid">KEEP</button>
+      <button id="momentSkip" class="tbtn">SKIP</button>
+    </div>
+  </div>
+
+  <!-- inspect drawer: provenance / memory / intent -->
+  <aside id="inspect" class="drawer" hidden>
+    <div class="drawer-head">
+      <span>INSPECT</span>
+      <button id="inspectClose" class="tbtn small">×</button>
+    </div>
+    <div class="drawer-body">
+      <section>
+        <h3>TWIN PASSPORT</h3>
+        <dl id="passport" class="passport"></dl>
+      </section>
+      <section>
+        <h3>SHARED MEMORY</h3>
+        <div id="episodeList" class="episodes"></div>
+      </section>
+      <section>
+        <h3>MEIKKU INTENT LOG</h3>
+        <pre id="intentLog" class="intentlog"></pre>
+      </section>
+      <section>
+        <h3>EXPORT</h3>
+        <div class="exportrow">
+          <button id="expPng" class="tbtn small">PNG</button>
+          <button id="expGlb" class="tbtn small">GLB</button>
+          <button id="expLog" class="tbtn small">OP LOG</button>
+        </div>
+        <p class="legend"><span class="sw sw-you"></span>你的痕迹 &nbsp; <span class="sw sw-mk"></span>Meikku 的痕迹 — 本页局部图例</p>
+        <p class="fineprint">这个对象完全在游戏中生成，属于 BORN-DIGITAL FORM，没有现实来源，不是 verified twin。</p>
+      </section>
+      <section>
+        <h3>SESSION</h3>
+        <div class="exportrow">
+          <button id="btnNewForm" class="tbtn small">NEW FORM</button>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div id="fps" class="fps"></div>
+  <div id="boot" class="boot">
+    <img class="boot-logo" src="meikku_logo_highfive_slate.svg" alt="MEIKKU" />
+    <span>LOADING</span>
+  </div>
+</div>
+
+<script type="module" src="main.js?v=24"></script>
+</body>
+</html>

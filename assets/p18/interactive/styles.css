@@ -1,0 +1,148 @@
+:root {
+  --paper: #eceae3; --surface: #fff; --ink: #1a1a1a; --mute: #68655f;
+  --quiet: #c9c6be; --accent: #e85416; --model-bg: #f7f6f2;
+  --sans: Inter, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html { color-scheme: light; scroll-behavior: auto; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 var(--sans); }
+button, input, select { font: inherit; color: inherit; }
+button, select, input[type="number"] { min-height: 44px; border: 1px solid var(--quiet); border-radius: 0; background: transparent; }
+button { padding: 8px 12px; cursor: pointer; }
+button:active { transform: scale(.98); }
+button:disabled, input:disabled, select:disabled { opacity: .42; cursor: not-allowed; }
+button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+input[type="number"], select { width: 100%; padding: 8px; }
+select { padding-right: 26px; }
+input[type="range"] { width: 100%; height: 32px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible,
+summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+a { color: inherit; text-underline-offset: 4px; }
+label { display: block; margin-bottom: 6px; font-size: 13px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: clamp(32px, 3.5vw, 52px); line-height: 1.1; font-weight: 500; letter-spacing: -.035em; }
+h2 { font-size: 14px; line-height: 1.4; font-weight: 600; }
+.mono, .eyebrow, output { font: 12px/1.5 var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { color: var(--mute); margin-bottom: 16px; }
+.project-header { max-width: 1600px; margin: auto; padding: 40px 40px 32px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.intro { margin-top: 16px; max-width: 58ch; color: #4e4c47; }
+.text-link { white-space: nowrap; padding-bottom: 2px; }
+.workspace { max-width: 1600px; padding: 0 40px; margin: 0 auto; display: grid; grid-template-columns: minmax(0,1fr) 336px; gap: 32px; align-items: start; }
+.viewer-column { position: sticky; top: 24px; min-width: 0; }
+.viewport-shell { background: var(--model-bg); border: 1px solid var(--quiet); }
+.view-toolbar { padding: 12px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border-bottom: 1px solid var(--quiet); }
+.view-options { display: flex; gap: 14px; flex-wrap: wrap; }
+.view-buttons { display: flex; }
+.view-buttons button { border-right: 0; min-width: 48px; }
+.view-buttons button:last-child { border-right: 1px solid var(--quiet); }
+.check-label { margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 44px; }
+#viewport { height: min(64vh, 680px); min-height: 400px; position: relative; outline-offset: -3px; }
+#viewport canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#viewer-message { position: absolute; inset: 45% 24px auto; text-align: center; color: var(--mute); }
+.viewport-footer { padding: 12px 16px; display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--quiet); color: var(--mute); font-size: 12px; }
+.action-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 16px; }
+.action-row > div { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.action-row p { max-width: 33ch; font-size: 11px; }
+.feedback { margin-top: 8px; min-height: 24px; font-size: 12px; color: var(--mute); }
+.separation-control { padding: 0 16px 10px; border-bottom: 1px solid var(--quiet); }
+.separation-control .help { margin-top: 0; }
+.settings { min-width: 0; border-top: 1px solid var(--ink); }
+.control-section { padding: 20px 0; border-bottom: 1px solid var(--quiet); }
+.control-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.control-pair > label { margin: 0; font-size: 12px; }
+.control-pair input { margin-top: 6px; font-family: var(--mono); font-size: 13px; }
+.section-label { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 12px; }
+.section-label span { font-size: 10px; color: var(--mute); }
+.range-label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 12px 0 0; }
+.range-label output { color: var(--mute); }
+.help { color: var(--mute); font-size: 12px; line-height: 1.6; margin-top: 8px; }
+details { margin-top: 16px; }
+summary { cursor: pointer; padding: 8px 0; font-size: 12px; }
+#plan-wrap { background: var(--surface); border: 1px solid var(--quiet); padding: 0 8px; }
+#plan { display: block; width: 100%; height: auto; overflow: visible; }
+#plan .cell { cursor: pointer; outline: none; }
+#plan .cell rect { stroke: #8a8782; stroke-width: 1; }
+#plan .cell[data-selected="true"] text { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+#plan .cell:focus-visible rect { stroke: #546b73; stroke-width: 2; stroke-dasharray: 3 3; }
+#plan text { font: 11px var(--mono); fill: var(--ink); pointer-events: none; }
+#plan .handle { touch-action: none; cursor: grab; outline: none; }
+#plan .handle:active { cursor: grabbing; }
+#plan .handle .hit { fill: transparent; }
+#plan .handle .halo { fill: #bcd8e4; fill-opacity: .28; stroke: #87acbc; stroke-opacity: .55; stroke-width: 1; pointer-events: none; transition: opacity 160ms ease-out; }
+#plan .handle .dot { fill: #243e4a; stroke: #f6fcff; stroke-width: 2; filter: drop-shadow(0 2px 2px #173b4c40); }
+#plan .handle text { fill: var(--surface); font: bold 11px var(--sans); }
+#plan .handle:focus-visible .dot, #plan .handle[data-dragging="true"] .dot { fill: #3f7891; stroke: #fff; }
+#plan .handle:focus-visible .halo, #plan .handle[data-dragging="true"] .halo { fill-opacity: .6; stroke: #3f7891; stroke-width: 1.5; }
+.project-note { max-width: 1600px; margin: 64px auto 0; padding: 40px; border-top: 1px solid var(--ink); display: grid; grid-template-columns: 1fr 1.35fr; gap: 64px; }
+.project-note h2 { font-size: 28px; line-height: 1.2; letter-spacing: -.025em; font-weight: 500; max-width: 19ch; }
+.project-note p { max-width: 63ch; margin-bottom: 16px; }
+.source-links { display: flex; gap: 24px; flex-wrap: wrap; font-size: 12px; margin-top: 24px; }
+.page-footer { max-width: 1600px; padding: 16px 40px 32px; margin: auto; display: flex; justify-content: space-between; color: var(--mute); font: 11px var(--mono); }
+.skip-link { position: absolute; top: -70px; left: 16px; z-index: 10; padding: 12px; background: var(--surface); }
+.skip-link:focus { top: 12px; }
+.noscript-note { padding: 24px 40px; }
+@media (hover:hover) {
+  button:not(:disabled):not([aria-pressed="true"]):hover { background: #e0ddd5; border-color: var(--ink); }
+  #plan .cell:hover rect { stroke: var(--ink); stroke-width: 2; }
+  #plan .handle:hover .dot { fill: #3f7891; }
+  #plan .handle:hover .halo { fill-opacity: .5; }
+}
+@media (max-width:1100px) {
+  .workspace { gap: 24px; padding: 0 24px; }
+  .project-header { padding: 32px 24px; }
+  .action-row { align-items: flex-start; flex-direction: column; }
+  .action-row > div { justify-content: flex-start; }
+  .interaction-hint { display: none; }
+}
+@media (max-width:960px) {
+  .workspace { grid-template-columns: minmax(0,1fr); }
+  .viewer-column { position: static; }
+  .settings { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; }
+  .control-section:nth-child(2) { grid-row: span 2; }
+  #viewport { height: 58vw; min-height: 320px; max-height: 600px; }
+  .action-row { flex-direction: row; align-items: center; }
+  .project-note { gap: 32px; padding: 32px 24px; }
+}
+@media (max-width:560px) {
+  .project-header { padding: 24px 16px; display: block; }
+  .project-header .text-link { display: inline-block; margin-top: 16px; font-size: 12px; }
+  .eyebrow { font-size: 10px; margin-bottom: 12px; }
+  .intro { font-size: 13px; }
+  .workspace { padding: 0 16px; gap: 16px; }
+  .view-toolbar { padding: 8px; gap: 8px; }
+  .view-buttons button { padding: 6px 8px; min-width: 42px; font-size: 12px; }
+  .check-label { font-size: 11px; gap: 5px; }
+  #viewport { height: 100vw; min-height: 300px; max-height: 430px; }
+  .viewport-footer { padding: 10px; }
+  .action-row { display: block; }
+  .action-row > div { margin-top: 12px; }
+  .action-row button { flex: 1; font-size: 12px; }
+  .settings { display: block; }
+  .project-note { display: block; padding: 24px 16px; margin-top: 32px; }
+  .project-note > div + div { margin-top: 24px; }
+  .project-note h2 { font-size: 25px; max-width: none; }
+  .page-footer { padding: 16px; gap: 12px; font-size: 10px; }
+}
+@media (prefers-reduced-motion:reduce) { button:active { transform: none; } #plan .handle .halo { transition: none; } }
+/* The portfolio supplies the project title and story around the embedded tool. */
+.embedded .project-header, .embedded .project-note, .embedded .page-footer { display: none; }
+.embedded .workspace { padding: 12px; gap: 16px; }
+@media (min-width:600px) {
+  .embedded .workspace { height: 100vh; grid-template-columns: minmax(0,1fr) 240px; }
+  .embedded .viewer-column { top: 0; height: 100%; display: flex; flex-direction: column; }
+  .embedded .viewport-shell { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .embedded #viewport { height: auto; min-height: 160px; flex: 1; }
+  .embedded .separation-control { padding: 0 10px 8px; }
+  .embedded .separation-control .help { font-size: 11px; }
+  .embedded .feedback:empty { display: none; }
+  .embedded .settings { display: block; height: calc(100vh - 24px); overflow-y: auto; padding-right: 8px; }
+  .embedded .control-section { padding: 14px 0; }
+  .embedded .action-row { display: block; margin-top: 8px; }
+  .embedded .action-row > div { margin-top: 8px; }
+  .embedded .interaction-hint { display: none; }
+  .embedded .view-toolbar { padding: 8px; gap: 8px; }
+  .embedded .view-buttons button { min-width: 42px; padding: 6px; }
+  .embedded .check-label { font-size: 11px; gap: 5px; }
+}

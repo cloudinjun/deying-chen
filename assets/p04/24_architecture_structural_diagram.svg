@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" font-family="sans-serif">
+    <defs>
+        <marker id="arrow-solid" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#888888" />
+        </marker>
+        <marker id="arrow-dashed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#888888" />
+        </marker>
+    </defs>
+
+    <rect width="1000" height="750" fill="#ffffff" />
+
+    <g transform="translate(40, 20)">
+        <rect width="14" height="14" fill="#f0f4ff" stroke="#a5b4f0" rx="2" />
+        <text x="20" y="12" font-size="12" fill="#555">agent</text>
+        <rect x="80" width="14" height="14" fill="#eefcf5" stroke="#a1d9c1" rx="2" />
+        <text x="100" y="12" font-size="12" fill="#555">hardware</text>
+        <rect x="180" width="14" height="14" fill="#fdf6eb" stroke="#e8cda1" rx="2" />
+        <text x="200" y="12" font-size="12" fill="#555">material</text>
+        <rect x="280" width="14" height="14" fill="#fef2ed" stroke="#e8bba8" rx="2" />
+        <text x="300" y="12" font-size="12" fill="#555">human</text>
+        <rect x="360" width="14" height="14" fill="#f5f4ef" stroke="#d1cdc2" rx="2" />
+        <text x="380" y="12" font-size="12" fill="#555">system</text>
+    </g>
+
+    <rect x="30" y="60" width="360" height="660" rx="15" fill="none" stroke="#dddddd" stroke-dasharray="6,4" stroke-width="2" />
+    <text x="45" y="85" font-size="14" font-weight="bold" fill="#aaaaaa">digital (agent)</text>
+
+    <rect x="420" y="60" width="260" height="660" rx="15" fill="none" stroke="#dddddd" stroke-dasharray="6,4" stroke-width="2" />
+    <text x="435" y="85" font-size="14" font-weight="bold" fill="#aaaaaa">physical</text>
+
+    <rect x="710" y="60" width="260" height="660" rx="15" fill="none" stroke="#dddddd" stroke-dasharray="6,4" stroke-width="2" />
+    <text x="725" y="85" font-size="14" font-weight="bold" fill="#aaaaaa">human</text>
+
+    <g fill="none" stroke="#888888" stroke-width="1.5">
+        
+        <path d="M 180 130 L 220 130" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+        <text x="200" y="122" font-size="11" fill="#777" text-anchor="middle" stroke="none">path proposal</text>
+
+        <path d="M 290 160 L 290 200" marker-end="url(#arrow-solid)" />
+
+        <path d="M 360 230 L 400 230 L 400 130 L 480 130" marker-end="url(#arrow-solid)" />
+        <text x="405" y="180" font-size="11" fill="#777" stroke="none">control</text>
+
+        <path d="M 550 160 L 550 280" marker-end="url(#arrow-solid)" />
+
+        <path d="M 760 310 L 620 310" marker-end="url(#arrow-solid)" />
+        <text x="690" y="302" font-size="11" fill="#777" text-anchor="middle" stroke="none">interaction</text>
+
+        <path d="M 550 500 L 550 360" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+
+        <path d="M 480 520 L 180 520" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+        <path d="M 480 540 L 360 540" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+        <text x="430" y="512" font-size="11" fill="#777" text-anchor="middle" stroke="none">image</text>
+
+        <path d="M 290 500 L 290 400" marker-end="url(#arrow-solid)" />
+        <text x="296" y="450" font-size="11" fill="#777" stroke="none">package</text>
+
+        <path d="M 220 530 L 180 530" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+        <text x="200" y="550" font-size="11" fill="#777" text-anchor="middle" stroke="none">update</text>
+
+        <path d="M 110 500 L 110 160" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+        <text x="105" y="330" font-size="11" fill="#777" text-anchor="middle" transform="rotate(-90, 105, 330)" stroke="none">world state</text>
+
+        <path d="M 220 350 L 150 350 L 150 160" marker-end="url(#arrow-solid)" />
+        <text x="156" y="260" font-size="11" fill="#777" stroke="none">retrieval</text>
+
+        <path d="M 760 650 L 620 650" marker-end="url(#arrow-solid)" />
+
+        <path d="M 480 650 L 60 650 L 60 530 L 80 530" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)" />
+        <text x="250" y="642" font-size="11" fill="#777" text-anchor="middle" stroke="none">human intent</text>
+    </g>
+
+    <g transform="translate(40, 100)">
+        <rect width="140" height="60" rx="6" fill="#f0f4ff" stroke="#a5b4f0" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#6677aa">agent</text>
+        <text x="70" y="40" font-size="15" fill="#334488" text-anchor="middle">Strategy</text>
+    </g>
+
+    <g transform="translate(220, 100)">
+        <rect width="140" height="60" rx="6" fill="#f0f4ff" stroke="#a5b4f0" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#6677aa">agent</text>
+        <text x="70" y="40" font-size="15" fill="#334488" text-anchor="middle">Execution</text>
+    </g>
+
+    <g transform="translate(220, 200)">
+        <rect width="140" height="60" rx="6" fill="#f5f4ef" stroke="#d1cdc2" stroke-width="1.5" />
+        <text x="70" y="36" font-size="14" fill="#555" text-anchor="middle">Run path</text>
+    </g>
+
+    <g transform="translate(220, 320)">
+        <path d="M 0 10 L 0 70 A 70 10 0 0 0 140 70 L 140 10" fill="#f5f4ef" stroke="#d1cdc2" stroke-width="1.5"/>
+        <ellipse cx="70" cy="10" rx="70" ry="10" fill="#ebeae4" stroke="#d1cdc2" stroke-width="1.5"/>
+        <text x="70" y="48" font-size="15" fill="#555" text-anchor="middle">Memory</text>
+    </g>
+
+    <g transform="translate(220, 500)">
+        <rect width="140" height="60" rx="6" fill="#f0f4ff" stroke="#a5b4f0" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#6677aa">agent</text>
+        <text x="70" y="40" font-size="15" fill="#334488" text-anchor="middle">Memory</text>
+    </g>
+
+    <g transform="translate(80, 500)">
+        <rect width="100" height="60" rx="6" fill="#f0f4ff" stroke="#a5b4f0" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#6677aa">agent</text>
+        <text x="50" y="40" font-size="15" fill="#334488" text-anchor="middle">Perception</text>
+    </g>
+
+    <g transform="translate(480, 100)">
+        <rect width="140" height="60" rx="6" fill="#eefcf5" stroke="#a1d9c1" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#448866">hardware</text>
+        <text x="70" y="40" font-size="15" fill="#225533" text-anchor="middle">Robot arm</text>
+    </g>
+
+    <g transform="translate(480, 280)">
+        <rect width="140" height="80" rx="6" fill="#fdf6eb" stroke="#e8cda1" stroke-width="2" />
+        <text x="10" y="20" font-size="10" fill="#996633">material</text>
+        <text x="70" y="50" font-size="18" font-weight="bold" fill="#663311" text-anchor="middle">Clay</text>
+    </g>
+
+    <g transform="translate(480, 500)">
+        <rect width="140" height="60" rx="6" fill="#eefcf5" stroke="#a1d9c1" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#448866">hardware</text>
+        <text x="70" y="40" font-size="15" fill="#225533" text-anchor="middle">Camera</text>
+    </g>
+
+    <g transform="translate(480, 620)">
+        <rect width="140" height="60" rx="6" fill="#f5f4ef" stroke="#d1cdc2" stroke-width="1.5" />
+        <text x="10" y="18" font-size="10" fill="#777">system</text>
+        <text x="70" y="40" font-size="14" fill="#555" text-anchor="middle">Text / mic</text>
+    </g>
+
+    <g transform="translate(760, 100)">
+        <rect width="160" height="580" rx="6" fill="#fef2ed" stroke="#e8bba8" stroke-width="1.5" />
+        <text x="15" y="25" font-size="11" fill="#995544">human</text>
+        <text x="80" y="300" font-size="20" font-weight="bold" fill="#662211" text-anchor="middle">Human</text>
+    </g>
+
+</svg>

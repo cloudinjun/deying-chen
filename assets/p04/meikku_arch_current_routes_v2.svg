@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" font-family="'Space Grotesk',Arial,sans-serif">
+<style>
+  text { font-family: 'Space Grotesk', Arial, sans-serif; fill: #232322; }
+  .d { font-family: 'Bungee', 'Arial Black', sans-serif; }
+  .title { font-size: 34px; letter-spacing: 1px; }
+  .stand { font-size: 15px; fill: #5C5C58; }
+  .h { font-size: 15px; }
+  .hn { font-size: 14px; }
+  .lead { font-size: 19px; letter-spacing: .5px; }
+  .b { font-size: 14px; }
+  .sub { font-size: 12px; fill: #5C5C58; }
+  .edge { font-size: 12.5px; font-weight: 700; }
+  .note { font-size: 12.5px; fill: #5C5C58; }
+  .sh { fill: #232322; }
+</style>
+<marker id="ar-232322" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#232322"/></marker>
+<marker id="ar-1052CC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#1052CC"/></marker>
+<marker id="ar-0E7A42" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#0E7A42"/></marker>
+<marker id="ar-F7C600" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#F7C600"/></marker>
+<marker id="ar-D42718" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#D42718"/></marker>
+<text class="d title" x="40" y="58" text-anchor="start">MEIKKU — CURRENT SYSTEM ROUTES</text>
+<text class="stand" x="40" y="86" text-anchor="start">One sentence, two bodies. Which body answers is an authority decision, not a model decision.</text>
+<text class="stand" x="40" y="108" text-anchor="start">Live route verified 2026-08-20  ·  supersedes the v1 figure set, which documents the physical chain only</text>
+<rect x="1180" y="62" width="20" height="20" fill="#1052CC" stroke="#232322" stroke-width="2"/>
+<text class="b" x="1210" y="78" text-anchor="start" fill="#5C5C58">language</text>
+<rect x="1308" y="62" width="20" height="20" fill="#0E7A42" stroke="#232322" stroke-width="2"/>
+<text class="b" x="1338" y="78" text-anchor="start" fill="#5C5C58">live route today</text>
+<rect x="1500" y="62" width="20" height="20" fill="#F7C600" stroke="#232322" stroke-width="2"/>
+<text class="b" x="1530" y="78" text-anchor="start" fill="#5C5C58">physical route — gated</text>
+<rect x="1740" y="62" width="20" height="20" fill="#D42718" stroke="#232322" stroke-width="2"/>
+<text class="b" x="1770" y="78" text-anchor="start" fill="#5C5C58">fail-closed</text>
+<rect class="sh" x="48" y="422" width="190" height="132"/>
+<rect x="40" y="414" width="190" height="132" fill="#FCFCFA" stroke="#232322" stroke-width="3"/>
+<text class="d lead" x="135" y="452" text-anchor="middle">VISITOR</text>
+<text class="b" x="135" y="478" text-anchor="middle">browser chat UI</text>
+<text class="sub" x="135" y="500" text-anchor="middle">:9011 · SSE</text>
+<text class="sub" x="135" y="524" text-anchor="middle">cam 4 · face presence</text>
+<path d="M 238 480 L 284 480" stroke="#1052CC" stroke-width="4" fill="none" marker-end="url(#ar-1052CC)"/>
+<text class="edge" x="261" y="470" text-anchor="middle" fill="#1052CC">HTTP</text>
+<text class="note" x="40" y="596" text-anchor="start">physicalRobotCommandsSent = false</text>
+<text class="note" x="40" y="616" text-anchor="start">on every run on record</text>
+<rect class="sh" x="298" y="158" width="396" height="660"/>
+<rect x="290" y="150" width="396" height="660" fill="#FCFCFA" stroke="#232322" stroke-width="3"/>
+<text class="d lead" x="312" y="194" text-anchor="start">CONVERSATION GATEWAY</text>
+<rect x="590" y="170" width="80" height="34" fill="#F7C600" stroke="#232322" stroke-width="2"/>
+<text class="d hn" x="630" y="193" text-anchor="middle" fill="#232322">:9020</text>
+<text class="sub" x="312" y="220" text-anchor="start">trust boundary — the single visitor ingress</text>
+<rect x="312" y="234" width="352" height="52" fill="#FCFCFA" stroke="#D42718" stroke-width="3"/>
+<text class="b" x="324" y="256" text-anchor="start" fill="#D42718">Model action fields are discarded.</text>
+<text class="b" x="324" y="276" text-anchor="start" fill="#232322">Actions derive only from the visitor’s own words.</text>
+<rect x="312" y="302" width="352" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="488" y="328" text-anchor="middle" fill="#232322">INTENT CLASSIFIER</text>
+<text class="sub" x="488" y="349" text-anchor="middle" fill="#5C5C58">deterministic · bilingual · negation-aware</text>
+<rect x="312" y="374" width="352" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="488" y="400" text-anchor="middle" fill="#232322">FAST-PATH REPLIES</text>
+<text class="sub" x="488" y="421" text-anchor="middle" fill="#5C5C58">14 grounded routes — no LLM call</text>
+<rect x="312" y="446" width="352" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="488" y="472" text-anchor="middle" fill="#232322">DELIVERY GUARDS</text>
+<text class="sub" x="488" y="493" text-anchor="middle" fill="#5C5C58">~25 reply integrity checks</text>
+<rect x="312" y="518" width="352" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="488" y="544" text-anchor="middle" fill="#232322">EVENT STORE</text>
+<text class="sub" x="488" y="565" text-anchor="middle" fill="#5C5C58">append-only JSONL · SSE resume</text>
+<rect x="312" y="590" width="352" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="488" y="616" text-anchor="middle" fill="#232322">CAPABILITY ADMISSION</text>
+<text class="sub" x="488" y="637" text-anchor="middle" fill="#5C5C58">whitelist · dry-run by default</text>
+<rect x="312" y="662" width="352" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="488" y="688" text-anchor="middle" fill="#232322">OPERATOR GATE</text>
+<text class="sub" x="488" y="709" text-anchor="middle" fill="#5C5C58">token + scopes · emergency stop</text>
+<text class="note" x="312" y="758" text-anchor="start">1,992 recorded turns · 8 frozen runs</text>
+<text class="note" x="312" y="778" text-anchor="start">clean rate 53.8% → 80% · P95 35.5 s → 18.6 s</text>
+<rect class="sh" x="768" y="158" width="330" height="300"/>
+<rect x="760" y="150" width="330" height="300" fill="#FCFCFA" stroke="#232322" stroke-width="3"/>
+<text class="d lead" x="782" y="194" text-anchor="start">AGENT RUNTIME</text>
+<text class="hn d" x="1068" y="192" text-anchor="end" fill="#5C5C58">WSL</text>
+<text class="sub" x="782" y="218" text-anchor="start">loopback only · prose only · zero tools</text>
+<rect x="782" y="234" width="286" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="925" y="260" text-anchor="middle" fill="#232322">OPENCLAW :18789</text>
+<text class="sub" x="925" y="281" text-anchor="middle" fill="#5C5C58">identity contracts · persona is the only voice</text>
+<rect x="782" y="306" width="286" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="925" y="332" text-anchor="middle" fill="#232322">HOSTED MODEL — PRIMARY</text>
+<text class="sub" x="925" y="353" text-anchor="middle" fill="#5C5C58">routed 2026-08-21 · frontier model</text>
+<rect x="782" y="378" width="286" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="925" y="404" text-anchor="middle" fill="#232322">OLLAMA :11434 — FALLBACK</text>
+<text class="sub" x="925" y="425" text-anchor="middle" fill="#5C5C58">qwen3.5:9b · fully local, no network</text>
+<path d="M 690 300 L 752 300" stroke="#1052CC" stroke-width="4" fill="none" marker-end="url(#ar-1052CC)"/>
+<text class="edge" x="721" y="290" text-anchor="middle" fill="#1052CC">jobs</text>
+<rect class="sh" x="768" y="508" width="330" height="240"/>
+<rect x="760" y="500" width="330" height="240" fill="#FCFCFA" stroke="#232322" stroke-width="3"/>
+<text class="d lead" x="782" y="544" text-anchor="start">CONTROL PLANE</text>
+<rect x="782" y="566" width="286" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="925" y="592" text-anchor="middle" fill="#232322">TOOL ROUTER :9017</text>
+<text class="sub" x="925" y="613" text-anchor="middle" fill="#5C5C58">blocks raw routes · strips self-approval</text>
+<rect x="782" y="638" width="286" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="925" y="664" text-anchor="middle" fill="#232322">SERVICE REGISTRY</text>
+<text class="sub" x="925" y="685" text-anchor="middle" fill="#5C5C58">single source of truth · 6 safety classes</text>
+<path d="M 925 456 L 925 494" stroke="#232322" stroke-width="4" fill="none" marker-end="url(#ar-232322)"/>
+<path d="M 690 620 L 752 620" stroke="#232322" stroke-width="4" fill="none" marker-end="url(#ar-232322)"/>
+<rect class="sh" x="1164" y="388" width="268" height="300"/>
+<rect x="1156" y="380" width="268" height="300" fill="#FCFCFA" stroke="#232322" stroke-width="3"/>
+<text class="d lead" x="1178" y="424" text-anchor="start">ROUTE AUTHORITY</text>
+<text class="sub" x="1178" y="450" text-anchor="start">the fork</text>
+<text class="b" x="1178" y="484" text-anchor="start">A companion has to answer</text>
+<text class="b" x="1178" y="506" text-anchor="start">immediately, every time, in</text>
+<text class="b" x="1178" y="528" text-anchor="start">front of strangers.</text>
+<text class="b" x="1178" y="558" text-anchor="start">A servo arm cannot promise</text>
+<text class="b" x="1178" y="580" text-anchor="start">that. So the expressive body</text>
+<text class="b" x="1178" y="602" text-anchor="start">and the executing body are</text>
+<text class="b" x="1178" y="624" text-anchor="start">separated on purpose.</text>
+<text class="sub" x="1178" y="654" text-anchor="start">Language never shares a channel with motion.</text>
+<path d="M 1094 600 L 1148 600" stroke="#232322" stroke-width="4" fill="none" marker-end="url(#ar-232322)"/>
+<text class="edge" x="1121" y="590" text-anchor="middle" fill="#232322">plan</text>
+<rect class="sh" x="1488" y="176" width="400" height="340"/>
+<rect x="1480" y="168" width="400" height="340" fill="#FCFCFA" stroke="#0E7A42" stroke-width="4"/>
+<text class="d lead" x="1502" y="214" text-anchor="start" fill="#0E7A42">DIGITAL BODY</text>
+<rect x="1748" y="188" width="112" height="34" fill="#0E7A42" stroke="#232322" stroke-width="2"/>
+<text class="d hn" x="1804" y="211" text-anchor="middle" fill="#FCFCFA">LIVE TODAY</text>
+<text class="sub" x="1502" y="240" text-anchor="start">the body a visitor can meet right now</text>
+<rect x="1502" y="256" width="356" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="1680" y="282" text-anchor="middle" fill="#232322">UNITY LOOP :9014</text>
+<text class="sub" x="1680" y="303" text-anchor="middle" fill="#5C5C58">semantic path · 6 vertices for a poke</text>
+<rect x="1502" y="328" width="356" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="1680" y="354" text-anchor="middle" fill="#232322">BLENDER BRIDGE :7800</text>
+<text class="sub" x="1680" y="375" text-anchor="middle" fill="#5C5C58">live joint data · one-shot completion counter</text>
+<rect x="1502" y="400" width="356" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="1680" y="426" text-anchor="middle" fill="#232322">SO-101 DIGITAL TWIN</text>
+<text class="sub" x="1680" y="447" text-anchor="middle" fill="#5C5C58">calibrated room · 200-action expressive body</text>
+<text class="note" x="1502" y="486" text-anchor="start" fill="#0E7A42">queued → path_ready → preview → playing → completed</text>
+<path d="M 1424 460 L 1452 460 L 1452 338 L 1472 338" stroke="#0E7A42" stroke-width="5" fill="none" stroke-linejoin="round" marker-end="url(#ar-0E7A42)"/>
+<rect class="sh" x="1488" y="568" width="400" height="340"/>
+<rect x="1480" y="560" width="400" height="340" fill="#FCFCFA" stroke="#F7C600" stroke-width="4"/>
+<text class="d lead" x="1502" y="606" text-anchor="start">PHYSICAL BODY</text>
+<rect x="1684" y="580" width="176" height="34" fill="#F7C600" stroke="#232322" stroke-width="2"/>
+<text class="d hn" x="1772" y="603" text-anchor="middle" fill="#232322">BUILT · GATED SHUT</text>
+<text class="sub" x="1502" y="632" text-anchor="start">assembled, calibrated, tested — and held closed</text>
+<rect x="1502" y="648" width="356" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="1680" y="674" text-anchor="middle" fill="#232322">MOTION AUTHORITY :9016</text>
+<text class="sub" x="1680" y="695" text-anchor="middle" fill="#5C5C58">IK → timed joint ledger · one-time release token</text>
+<rect x="1502" y="720" width="356" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="1680" y="746" text-anchor="middle" fill="#232322">HARDWARE AUTHORITY :7788</text>
+<text class="sub" x="1680" y="767" text-anchor="middle" fill="#5C5C58">arm_server — the only hardware owner</text>
+<rect x="1502" y="792" width="356" height="62" fill="#EBEBE7" stroke="#232322" stroke-width="2"/>
+<text class="d h" x="1680" y="818" text-anchor="middle" fill="#232322">SO-101 — 6 FEETECH SERVOS</text>
+<text class="sub" x="1680" y="839" text-anchor="middle" fill="#5C5C58">COM4 serial · XY error 74.3 → 18.0 mm</text>
+<text class="note" x="1502" y="878" text-anchor="start" fill="#232322">ports not listening · 0 commands · 0 buffered packets</text>
+<path d="M 1424 620 L 1452 620 L 1452 730 L 1472 730" stroke="#F7C600" stroke-width="5" fill="none" stroke-linejoin="round" stroke-dasharray="14 9" marker-end="url(#ar-F7C600)"/>
+<text class="edge" x="1452" y="696" text-anchor="middle" fill="#D42718">closed</text>
+<rect x="1434" y="704" width="36" height="15" fill="#D42718" stroke="#232322" stroke-width="0"/>
+<rect x="290" y="960" width="1590" height="52" fill="#0E7A42" stroke="#232322" stroke-width="2"/>
+<text class="d hn" x="1085" y="992" text-anchor="middle" fill="#FCFCFA">EMERGENCY STOP — BYPASSES EVERY GATE, NEEDS NO APPROVAL, ALWAYS OPEN</text>
+</svg>

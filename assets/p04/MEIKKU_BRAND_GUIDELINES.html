@@ -1,0 +1,2706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meikku — Brand Guidelines v2.16</title>
+
+<!--
+  Meikku Brand Guidelines
+  版式：16:9 横版，每页 1920 × 1080 px，共 49 页
+  打印：Chrome / Edge → Ctrl+P → 边距「无」→ 勾选「背景图形」→ 另存为 PDF
+        打印时通过 .page 上的 zoom 缩放到 297mm × 167mm（A4 横向宽度的真 16:9）
+  字体：在线加载 Bungee + Space Grotesk。若需离线／公开预览，
+        请改为项目内的本地字体文件（见 MEDIA_AGENT_GUIDE.md 的 @font-face 约定）
+
+  ── v2.12 版式重建说明 ────────────────────────────────────────
+  这份文件此前经过多轮「加页 → 局部微调」，样式表里积累了成对的重复规则
+  （.application-page / .extension-page / .product-visual / .ui-art-preview
+  各被定义两次，后者静默覆盖前者），以及 250 处内联 flex 与边距，
+  导致版式僵化、图片被裁切、父容器尺寸与素材比例不符。
+
+  v2.12 把版式收敛成四层，新增内容请只在这四层里工作：
+    ① 版心骨架  .page / .page-head / .page-body / .page-foot
+    ② 版式原型  .body--split / .body--cols / .body--rows（+ .split--* 预设）
+    ③ 通用构件  .panel / .figure / .plate / .swatch / .specimen …
+    ④ 素材比例  .r-16x9 / .r-3x2 / .r-5x4 / .r-1x1 / .r-9x20 …
+  规则：不要为单页写 #id 覆盖，不要写内联 flex 或高度。
+        图片一律放进 .plate，并挂上与源文件真实比例一致的 .r-* 类。
+  ──────────────────────────────────────────────────────────────
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   1. 设计令牌 —— 全部来自 MEIKKU_DESIGN_DNA.md，不新增任何值
+   ============================================================ */
+:root{
+  /* --- 结构底色：PAPER 与 SLATE 是品牌骨架；中间三级是安静的第三级支持层 --- */
+  --paper:#FCFCFA;        /* 最浅极 · 近白 */
+  --clay:#EBEBE7;         /* 材料场 */
+  --grid:#D8D8D3;         /* 工作台点阵纹理 */
+  --stone:#5C5C58;        /* 次级文字、图说、休眠硬件 */
+  --slate:#232322;        /* 最深极 · 边框、正文、投影。系统内不出现纯黑 */
+
+  /* --- 共享颜料层：继承油画／包豪斯／蒙德里安／乐高的不断代色彩秩序。
+         品牌层不把任何颜色永久分配给人、机器人或状态；具体语义由单个作品的局部图例决定。 --- */
+  --ultramarine:#1052CC;  /* 群青；深色填充配 paper 文字 */
+  --viridian:#0E7A42;     /* 翠绿；深色填充配 paper 文字 */
+  --cadmium:#F7C600;      /* 镉黄；填充配 slate 文字，浅底上不作文字色 */
+  --vermilion:#D42718;    /* 朱砂；深色填充配 paper 文字 */
+
+  --kraft:#C9A87C;        /* 仅实体包装 */
+
+  /* 旧 token 别名：保证既有文件不至于失效，新工作不要再用这些名字 */
+  --ink:var(--slate);
+  --lime:var(--ultramarine);
+  --pink:var(--vermilion);
+  --amber:var(--cadmium);
+
+  --font-display:"Bungee","Arial Black",sans-serif;
+  --font-body:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
+
+  /* --- Manual type hierarchy: one role, one format. Page-local size overrides are prohibited. --- */
+  --text-cover-mark:176px;
+  --text-display-hero:96px;
+  --text-display-section:52px;
+  --text-display-statement:44px;
+  --text-display-callout:36px;
+  --text-display-action:30px;
+  --text-display-card:20px;
+  --text-body-lead:24px;
+  --text-body:18px;
+  --text-body-compact:16px;
+  --text-caption:14px;
+  --text-system:13px;
+  --text-micro:12px;
+  --text-fine:11px;
+
+  /* Purpose-specific specimens and logo pairings are not content hierarchy. */
+  --text-specimen-display:56px;
+  --text-specimen-body:48px;
+  --text-lockup-horizontal:44px;
+  --text-lockup-stacked:40px;
+
+  --border-heavy:4px solid var(--slate);
+  --border-mid:3px solid var(--slate);
+  --shadow-block:6px 6px 0 var(--slate);
+
+  /* --- 间距阶梯：版式只允许用这五档，不要再写任意数值 --- */
+  --gap-xs:12px;
+  --gap-sm:16px;
+  --gap:24px;
+  --gap-md:28px;
+  --gap-lg:32px;
+
+  --pad-page:88px;      /* 页面安全边距 */
+  --pad-panel:24px;     /* 面板默认内边距 */
+
+  /* --- 页脚元数据：改版本号只改这里 --- */
+  --doc-name:"Meikku Brand Guidelines";
+  --doc-stamp:"V2.16 · 2026-08-17";
+  --doc-pages:"49";
+}
+
+/* ============================================================
+   2. 基础重置与版心骨架
+   ------------------------------------------------------------
+   .page 固定 1920 × 1080，纵向 flex。
+   .page-body 拿到确定高度，因此内部任何 flex:1 / minmax(0,1fr)
+   都能正确解析 —— 这是所有「图片自适应且不溢出」的前提。
+   可用正文高度 = 1080 − 2×88(页边距) − 92(页眉) − 52(页脚净空) ≈ 756px
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+
+html{background:var(--stone)}
+
+body{
+  font-family:var(--font-body);
+  font-weight:400;
+  color:var(--slate);
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+  counter-reset:page-n;
+}
+
+.page{
+  position:relative;
+  width:1920px;
+  height:1080px;
+  margin:0 auto 40px;
+  background:var(--paper);
+  overflow:hidden;
+  padding:var(--pad-page);
+  display:flex;
+  flex-direction:column;
+  counter-increment:page-n;
+}
+
+/* 深色页：一次声明，页内所有子元素自动继承正确的反白配色 */
+.page--dark{background:var(--slate);color:var(--paper)}
+.page--dark .page-head{border-color:var(--paper)}
+.page--dark .page-head .note{color:var(--grid)}
+.page--dark .page-foot{border-color:var(--stone);color:var(--grid)}
+.page--dark .page-foot::after{color:var(--paper)}
+.page--dark .cap{color:var(--grid)}
+
+/* 页眉：章节号 + 页题 + 右侧注解 */
+.page-head{
+  flex:0 0 auto;
+  display:flex;
+  align-items:baseline;
+  gap:20px;
+  border-bottom:var(--border-heavy);
+  padding-bottom:14px;
+  margin-bottom:40px;
+}
+.page-head .ch{
+  font-family:var(--font-display);
+  font-size:var(--text-display-action);
+  letter-spacing:0.05em;
+  line-height:1;
+}
+.page-head .name{
+  font-family:var(--font-body);
+  font-weight:700;
+  font-size:var(--text-body-compact);
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+}
+.page-head .note{
+  font-family:var(--font-body);
+  font-weight:400;
+  font-size:var(--text-body-compact);
+  letter-spacing:0.04em;
+  color:var(--stone);
+  margin-left:auto;
+}
+
+/* 页脚：三段全部由 CSS 生成，插页或改序后页码自动正确。
+   不要再往 HTML 里写死版本号或页码。 */
+.page-foot{
+  position:absolute;
+  left:var(--pad-page);
+  right:var(--pad-page);
+  bottom:44px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-weight:700;
+  font-size:var(--text-micro);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--stone);
+  border-top:2px solid var(--grid);
+  padding-top:12px;
+}
+.page-foot::before{content:var(--doc-name)}
+.page-foot i{font-style:normal}
+.page-foot i::before{content:var(--doc-stamp)}
+.page-foot::after{
+  content:counter(page-n) " / " var(--doc-pages);
+  color:var(--slate);
+}
+
+/* 正文区：默认即纵向堆叠，多数页面不需要再加布局类 */
+.page-body{
+  flex:1 1 auto;
+  min-height:0;
+  padding-bottom:52px;
+  display:flex;
+  flex-direction:column;
+  gap:var(--gap);
+}
+
+/* ============================================================
+   3. 排版原子
+   ============================================================ */
+.h-hero{font-family:var(--font-display);font-size:var(--text-display-hero);letter-spacing:0.04em;line-height:1.0}
+.h-sec{font-family:var(--font-display);font-size:var(--text-display-section);letter-spacing:0.03em;line-height:1.05}
+.h-statement{font-family:var(--font-display);font-size:var(--text-display-statement);letter-spacing:0.03em;line-height:1.1}
+.h-callout{font-family:var(--font-display);font-size:var(--text-display-callout);letter-spacing:0.03em;line-height:1.1}
+.h-subhead{font-family:var(--font-display);font-size:var(--text-display-action);letter-spacing:0.05em;line-height:1.08}
+.h-mini{font-family:var(--font-display);font-size:var(--text-display-card);letter-spacing:0.05em;line-height:1.0}
+
+.body-lg{font-size:var(--text-body-lead);font-weight:500;line-height:1.55;letter-spacing:0.01em;max-width:38em}
+.body{font-size:var(--text-body);font-weight:400;line-height:1.5;letter-spacing:0.01em}
+.body-compact{font-size:var(--text-body-compact);font-weight:400;line-height:1.45;letter-spacing:0.01em}
+.cap{font-size:var(--text-caption);font-weight:400;line-height:1.4;color:var(--stone)}
+.sys{font-weight:700;font-size:var(--text-system);letter-spacing:0.1em;text-transform:uppercase;line-height:1.5}
+.quiet-note{max-width:48em;font-size:var(--text-body-compact);font-weight:400;letter-spacing:0.01em;line-height:1.5;color:var(--stone)}
+.rule{height:4px;background:var(--slate);border:0}
+.rule--dashed{height:0;background:none;border-top:4px dashed var(--slate)}
+.rule--light{height:0;background:none;border-top:2px solid var(--grid)}
+
+/* ============================================================
+   4. 版式原型 —— 每页只从这里挑一个，不再手写 flex 比例
+   ------------------------------------------------------------
+   .body--split  两栏；比例由 --split 决定，用 .split--* 预设
+   .body--cols   等宽网格；列数由 --cols 决定
+   .body--rows   行网格；主图行 minmax(0,1fr)，附注行 auto
+   ============================================================ */
+/* .split 同样可以嵌套在页内任意行使用，页面级则写 .body--split */
+.body--split,.split{
+  display:grid;
+  grid-template-columns:var(--split,minmax(0,1fr) minmax(0,1fr));
+  gap:var(--gap-lg);
+  align-items:stretch;
+  min-height:0;
+}
+.body--cols{
+  display:grid;
+  grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));
+  gap:var(--gap);
+  align-items:stretch;
+}
+.body--rows{
+  display:grid;
+  grid-template-rows:var(--rows,minmax(0,1fr) auto);
+  gap:var(--gap);
+}
+.body--tight{gap:var(--gap-sm)}
+.body--loose{gap:var(--gap-lg)}
+
+/* 两栏预设。数值来源：让主图栏宽度 ≈ 素材比例 × 可用高度，
+   这样声明比例的图版既不留黑边也不越界。 */
+.split--even{--split:minmax(0,1fr) minmax(0,1fr)}
+.split--wide{--split:minmax(0,1.65fr) minmax(0,1fr)}   /* 3:2 主图 + 附注栏 */
+.split--lead{--split:minmax(0,1.4fr) minmax(0,1fr)}
+.split--data{--split:minmax(0,1.5fr) minmax(0,1fr)}    /* 数据表 + 附注栏 */
+.split--flat{--split:minmax(0,1.2fr) minmax(0,1fr)}
+.split--near{--split:minmax(0,1.1fr) minmax(0,1fr)}    /* 5:4 主图 */
+.split--tall{--split:minmax(0,1.45fr) minmax(0,1fr)}   /* 竖版素材组 */
+.split--anchor{--split:minmax(0,1fr) minmax(0,1.5fr)}  /* 1:1 实物照 + 合成锁定组合 */
+/* 16:9 与 3:2 并置时，用比例本身当 fr 值 —— 两块图版自动等高 */
+.split--mixed{--split:minmax(0,1.778fr) minmax(0,1.5fr)}
+
+/* 栏内组合原子 */
+.stack{display:flex;flex-direction:column;gap:var(--gap);min-height:0;min-width:0}
+.stack--tight{gap:var(--gap-sm)}
+.stack--loose{gap:var(--gap-md)}
+.stack--spread{justify-content:space-between}
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap)}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--gap)}
+.grid-5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:20px}
+.row{display:flex;gap:var(--gap);align-items:flex-start}
+.row--center{align-items:center}
+.row--between{justify-content:space-between}
+.row--baseline{align-items:baseline}
+.fill{flex:1 1 auto;min-height:0}
+.hold{flex:0 0 auto}
+
+/* 底色工具：深底一律配 paper 文字，浅底一律配 slate 文字。
+   把配对关系写进类里，避免再出现深块上继承浅字的对比度事故。 */
+.fill-paper{background:var(--paper);color:var(--slate)}
+.fill-clay{background:var(--clay);color:var(--slate)}
+.fill-grid{background:var(--grid);color:var(--slate)}
+.fill-stone{background:var(--stone);color:var(--paper)}
+.fill-slate{background:var(--slate);color:var(--paper)}
+.fill-ultramarine{background:var(--ultramarine);color:var(--paper)}
+.fill-viridian{background:var(--viridian);color:var(--paper)}
+.fill-cadmium{background:var(--cadmium);color:var(--slate)}
+.fill-vermilion{background:var(--vermilion);color:var(--paper)}
+.fill-kraft{background:var(--kraft);color:var(--slate)}
+
+/* ============================================================
+   5. 通用构件
+   ============================================================ */
+.panel{
+  border:var(--border-heavy);
+  background:var(--paper);
+  padding:var(--pad-panel) 26px;
+  min-width:0;
+}
+/* 面板内部统一节奏，取代过去逐条写的 margin-bottom */
+.panel>*+*{margin-top:var(--gap-xs)}
+.panel>.sys+*,
+.panel>.h-mini+*,
+.panel>.h-callout+*,
+.panel>.h-subhead+*{margin-top:var(--gap-xs)}
+.panel--shadow{box-shadow:var(--shadow-block)}
+.panel--clay{background:var(--clay)}
+.panel--slate{background:var(--slate);color:var(--paper)}
+.panel--blue{background:var(--ultramarine);color:var(--paper);border-color:var(--slate)}
+.panel--slate .cap,
+.panel--blue .cap,
+.panel--slate .quiet-note{color:var(--grid)}
+.panel--redline{border-color:var(--vermilion)}
+.panel--redline>.sys:first-child{color:var(--vermilion)}
+.panel--flush{padding:0}
+.panel--flush>*+*{margin-top:0}
+.panel--snug{padding:18px 20px}
+
+.badge{
+  display:inline-block;
+  font-family:var(--font-display);
+  font-size:var(--text-caption);
+  letter-spacing:0.08em;
+  line-height:1;
+  padding:9px 14px;
+  border:var(--border-mid);
+  background:var(--paper);
+  color:var(--slate);   /* 必须显式声明：徽章会出现在深色面板里，不能继承父级的浅色文字 */
+}
+.badge--ultramarine{background:var(--ultramarine);color:var(--paper)}
+.badge--viridian{background:var(--viridian);color:var(--paper)}
+.badge--vermilion{background:var(--vermilion);color:var(--paper);border-color:var(--slate)}
+.badge--cadmium{background:var(--cadmium);color:var(--slate)}
+.badge--slate{background:var(--slate);color:var(--paper)}
+
+/* DO / DON'T 判定条 */
+.verdict{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--font-display);
+  font-size:var(--text-body-compact);letter-spacing:0.06em;
+  padding:10px 14px;
+  border:var(--border-mid);
+  flex:0 0 auto;
+}
+.verdict--do{background:var(--slate);color:var(--paper)}
+.verdict--no{background:var(--paper);color:var(--slate)}
+
+/* 表格 */
+table{border-collapse:collapse;width:100%}
+th,td{
+  text-align:left;
+  padding:9px 12px;
+  border-bottom:2px solid var(--grid);
+  font-size:var(--text-caption);
+  vertical-align:top;
+}
+th{
+  font-weight:700;
+  font-size:var(--text-micro);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  border-bottom:var(--border-mid);
+  white-space:nowrap;
+}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* 点阵底纹（工作台隐喻） */
+.dotfield{
+  background-image:radial-gradient(var(--grid) 2px, transparent 2px);
+  background-size:24px 24px;
+}
+
+/* ============================================================
+   6. 图版系统 —— 修掉「父容器尺寸与图片不符」的根因
+   ------------------------------------------------------------
+   规则一：.plate 的 aspect-ratio 必须等于素材真实比例，用 .r-* 声明。
+   规则二：图片一律 object-fit:contain，永不裁切、永不变形。
+   规则三：栏高吃紧时改用 .figure--fit，由高度驱动，宁可留白也不越界。
+   禁止：在图片或图框上写死 px 高度。
+   ============================================================ */
+.figure{
+  margin:0;
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  border:var(--border-heavy);
+  background:var(--paper);
+  overflow:hidden;
+}
+.figure--plain{border:0;background:transparent;overflow:visible}
+.plate{
+  position:relative;
+  aspect-ratio:var(--r,3/2);
+  background:var(--paper);
+  overflow:hidden;
+  flex:0 0 auto;
+}
+/* 只作用于直接子图，避免覆盖 .plate 内部合成组件（如 .anchor-lockup）里的图片 */
+.plate>img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+.plate--dark{background:var(--slate)}
+.plate--clay{background:var(--clay)}
+.figure figcaption{
+  flex:0 0 auto;
+  padding:12px 16px;
+  border-top:var(--border-heavy);
+  font-size:var(--text-system);
+  font-weight:700;
+  letter-spacing:0.1em;
+  line-height:1.4;
+  text-transform:uppercase;
+}
+.figure--plain figcaption{border-top:0;padding:12px 0 0}
+
+/* 高度驱动模式：图版吃满栏内剩余高度，图片在其中等比内缩 */
+.figure--fit{flex:1 1 auto}
+.figure--fit .plate{flex:1 1 auto;aspect-ratio:auto;min-height:0}
+
+/* 素材真实比例 —— 数值来自源文件像素尺寸，改图必须同步改这里 */
+.r-16x9{--r:16/9}          /* applications 01–03 · desktop wallpapers 2560×1440 */
+.r-3x2{--r:3/2}            /* masters · extensions · token arcade 1536×1024 */
+.r-5x4{--r:5/4}            /* 14_multi_participant_workshop 1402×1122 */
+.r-1x1{--r:1/1}            /* pose controls · rhino token · so101 ref · app icon */
+.r-9x20{--r:9/20}          /* mobile wallpapers 1440×3200 */
+.r-sheet{--r:1600/1460}    /* icon contact sheet · 42 icons, 6 rows */
+.r-sheet-wide{--r:1800/1180}  /* support-assets contact sheet */
+
+/* 图版角标 */
+.plate-tag{
+  position:absolute;top:0;left:0;z-index:2;
+  font-family:var(--font-display);
+  font-size:var(--text-system);letter-spacing:0.08em;line-height:1;
+  background:var(--slate);color:var(--paper);
+  padding:9px 12px;
+}
+
+/* 附注栏：主图旁边的面板组 */
+.notes{display:flex;flex-direction:column;gap:var(--gap);min-width:0;min-height:0}
+.notes--spread{justify-content:space-between}
+.notes>.panel{padding:20px 24px}
+.notes--snug>.panel{padding:16px 20px}
+
+/* ============================================================
+   7. 专用构件
+   ============================================================ */
+/* 封面 */
+.cover{justify-content:space-between;padding:80px 88px 60px}
+.cover-mark{font-family:var(--font-display);font-size:var(--text-cover-mark);letter-spacing:0.02em;line-height:0.92}
+.cover-identity{display:flex;align-items:center;gap:56px}
+.cover-logo{width:216px;height:auto;display:block;flex:0 0 auto}
+
+/* 分层调色盘：结构底色 → 共享颜料 → 第三级支持中性色 */
+.pal{display:flex;flex-direction:column;gap:var(--gap-sm)}
+.pal-lab{
+  display:flex;align-items:baseline;gap:10px;
+  margin-bottom:7px;
+  font-size:var(--text-fine);font-weight:700;letter-spacing:0.12em;
+  text-transform:uppercase;color:var(--stone);
+}
+.pal-lab b{
+  font-family:var(--font-display);font-weight:400;
+  font-size:var(--text-system);letter-spacing:0.05em;color:var(--slate);
+}
+.pal-row{display:flex;border:var(--border-heavy)}
+.pal-row i{
+  flex:1;
+  display:flex;align-items:center;gap:11px;
+  padding:0 16px;
+  border-right:var(--border-heavy);
+  font-style:normal;
+}
+.pal-row i:last-child{border-right:0}
+.pal-row i b{font-family:var(--font-display);font-weight:400;font-size:var(--text-body-compact);letter-spacing:0.04em;line-height:1}
+/* 不用 opacity 做层级：它会实际压低对比度，深色块上的小字会掉到 4.5:1 以下。
+   层级改由字号和字重承担。 */
+.pal-row i span{font-size:var(--text-fine);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;line-height:1.3}
+.pal-row--lead{height:76px}
+.pal-row--lead i b{font-size:var(--text-display-card)}
+.pal-row--lead i span{font-size:var(--text-micro)}
+.pal-row--pigment{height:72px}
+.pal-row--pigment i b{font-size:var(--text-body)}
+.pal-row--pigment i span{font-size:var(--text-micro)}
+.pal-row--support{height:34px}
+.pal-row--support i{padding:0 12px;gap:8px}
+.pal-row--support i b{font-size:var(--text-micro)}
+.pal-row--support i span{font-size:var(--text-fine)}
+.pal-row--bare{height:28px}
+
+/* 目录 */
+.chapter-list{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);flex:1 1 auto;align-content:start}
+.chapter-row{border-top:var(--border-heavy);padding:18px 0 10px;display:grid;grid-template-columns:58px 1fr auto;gap:20px;align-items:start}
+.chapter-row .n,.chapter-row .p{font-family:var(--font-display);font-size:var(--text-display-card);letter-spacing:0.05em;line-height:1}
+.chapter-row .t{font-size:var(--text-body-lead);font-weight:700;letter-spacing:0.01em;line-height:1.15}
+.chapter-row small{display:block;margin-top:8px;color:var(--stone);font-size:var(--text-caption);font-weight:400;letter-spacing:0.01em;line-height:1.4}
+
+/* 品牌定义大字块 */
+.statement-field{flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-between;padding:42px;border:var(--border-heavy);background:var(--clay);box-shadow:var(--shadow-block)}
+.statement-notes{display:grid;grid-template-columns:1.25fr 1.1fr 1fr;gap:var(--gap-lg)}
+.statement-notes>.panel>*+*{margin-top:10px}
+
+/* 四条原则 */
+.principle-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);flex:1 1 auto}
+.principle{border:var(--border-heavy);padding:28px;display:grid;grid-template-columns:72px 1fr;gap:var(--gap);align-items:start}
+.principle .badge{font-size:var(--text-display-card);min-width:56px;padding:10px 12px}
+.principle .h-subhead{margin-bottom:var(--gap-xs)}
+.principle .body{max-width:34em}
+
+/* 色卡 */
+.swatch{border:var(--border-heavy);display:flex;flex-direction:column;min-width:0;height:100%}
+.swatch .chip{flex:0 0 auto;height:150px;border-bottom:var(--border-heavy)}
+.swatch .meta{padding:16px 16px 18px;background:var(--paper);flex:1 1 auto}
+.swatch .nm{font-family:var(--font-display);font-size:var(--text-body);letter-spacing:0.04em;line-height:1.1;margin-bottom:4px}
+.swatch .rl{font-size:var(--text-micro);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--stone);margin-bottom:12px}
+.swatch dl{font-size:var(--text-system);line-height:1.65}
+.swatch dl div{display:flex;justify-content:space-between;gap:8px}
+.swatch dt{font-weight:700;letter-spacing:0.06em;color:var(--stone)}
+.swatch dd{font-variant-numeric:tabular-nums}
+.swatch--compact .chip{height:170px}
+
+/* 颜料页的 KRAFT 卡 */
+.kraft-card{min-width:0;height:100%;padding:0;display:grid;grid-template-columns:112px 1fr;overflow:hidden}
+.kraft-card>*+*{margin-top:0}
+.kraft-card__chip{background:var(--kraft);border-right:var(--border-heavy)}
+.kraft-card__copy{padding:var(--pad-panel)}
+.kraft-card__copy>*+*{margin-top:8px}
+.kraft-card__data{
+  display:flex;gap:var(--gap-sm);flex-wrap:wrap;
+  margin-top:18px !important;
+  padding:12px 0;
+  border-top:2px solid var(--grid);
+  border-bottom:2px solid var(--grid);
+}
+.kraft-card__data span{white-space:nowrap}
+
+/* 字样展示 */
+.specimen{border:var(--border-heavy);padding:22px 24px;background:var(--paper);min-height:0;display:flex;flex-direction:column}
+.specimen .glyphs{font-family:var(--font-display);font-size:var(--text-specimen-display);letter-spacing:0.03em;line-height:1.15;word-break:break-all}
+.specimen .glyphs-body{font-family:var(--font-body);font-size:var(--text-specimen-body);font-weight:500;letter-spacing:0.005em;line-height:1.2;word-break:break-all}
+.weight-sample{margin-bottom:10px}
+.weight-sample--medium{font-weight:500}
+.weight-sample--bold{font-weight:700}
+
+/* 禁用项卡片 */
+.dont{border:var(--border-heavy);background:var(--paper);padding:0;overflow:hidden;display:flex;flex-direction:column}
+.dont .top{
+  background:var(--vermilion);color:var(--paper);
+  font-family:var(--font-display);font-size:var(--text-caption);letter-spacing:0.05em;
+  padding:11px 14px;border-bottom:var(--border-heavy);
+  display:flex;gap:10px;align-items:center;
+}
+.dont .bd{padding:16px;font-size:var(--text-body-compact);line-height:1.45;flex:1 1 auto}
+
+/* 效果示意小图 */
+.fx{
+  flex:0 0 auto;
+  height:96px;
+  border-bottom:var(--border-mid);
+  display:flex;align-items:center;justify-content:center;
+  background:var(--clay);
+  position:relative;overflow:hidden;
+}
+.fx--hatch{background:repeating-linear-gradient(45deg,var(--vermilion) 0 6px,var(--clay) 6px 14px)}
+.fx--scan{background:repeating-linear-gradient(0deg,var(--clay) 0 3px,var(--grid) 3px 6px)}
+.fx--dots{background-color:var(--paper)}
+.fx-bar{width:80%;height:10px;border:3px solid var(--slate)}
+.fx-dash{width:80%;height:0;border-top:4px dashed var(--slate)}
+.fx-dot{width:34px;height:34px;border-radius:50%;border:4px solid var(--slate)}
+.fx-box{width:70%;height:52px;border:4px dashed var(--vermilion);background:var(--paper)}
+.fx-ghost{width:70%;height:52px;border:4px solid var(--grid);background:var(--clay);opacity:.65}
+.fx-swatch{height:88px;border:var(--border-heavy);position:relative}
+.fx-swatch--center{display:flex;align-items:center;justify-content:center}
+.fx-card{display:flex;flex-direction:column}
+.fx-card__copy{padding:14px 16px}
+.fx-card__copy>*+*{margin-top:6px}
+
+/* 效果卡与图形元素卡沿用 .panel--flush，正文另起内边距 */
+.card-copy{padding:16px 20px}
+.card-copy>*+*{margin-top:8px}
+
+/* 检查清单（深色页） */
+.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-md);flex:1 1 auto}
+.check-list{border:var(--border-heavy);padding:28px}
+.check-list>*+*{margin-top:var(--gap-sm)}
+
+/* 影像页的五条美术指导 */
+.rule-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:var(--border-heavy);flex:0 0 auto}
+.rule-strip div{padding:14px 16px;border-right:var(--border-heavy)}
+.rule-strip div:last-child{border-right:0}
+.rule-strip b{display:block;font-weight:700;font-size:var(--text-body-compact);line-height:1.35;margin-bottom:5px}
+.rule-strip span{font-size:var(--text-caption);line-height:1.4;color:var(--stone)}
+
+/* 成对规则块 */
+.rule-pair{display:grid;grid-template-columns:1.25fr 1fr;gap:var(--gap-lg);flex:0 0 auto}
+
+/* 产品页 */
+.product-sequence{display:grid;grid-template-columns:repeat(4,1fr);border:var(--border-heavy);flex:0 0 auto}
+.product-sequence div{padding:16px;border-right:var(--border-heavy);background:var(--paper)}
+.product-sequence div:last-child{border-right:0}
+.product-sequence b{display:block;font-family:var(--font-display);font-size:var(--text-body-compact);letter-spacing:0.05em;margin-bottom:8px}
+.product-sequence span{font-size:var(--text-caption);line-height:1.4}
+.product-list{list-style:none;display:grid;gap:var(--gap-xs)}
+.product-list li{border-top:3px solid var(--slate);padding-top:10px;font-size:var(--text-body-compact);line-height:1.4}
+
+/* 扩展页的编号索引条 */
+.extension-index{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:var(--border-heavy);border-left:var(--border-heavy);flex:0 0 auto}
+.extension-index span{min-height:56px;padding:12px;border-right:var(--border-heavy);border-bottom:var(--border-heavy);font-size:var(--text-caption);font-weight:700;line-height:1.25;text-transform:uppercase;display:flex;align-items:center;overflow-wrap:anywhere}
+.extension-index b{font-family:var(--font-display);font-size:var(--text-system);margin-right:8px}
+.extension-index--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.extension-index--4{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+/* Logo 页 */
+.logo-stage{position:relative;min-height:0;border:var(--border-heavy);background:var(--paper);display:flex;align-items:center;justify-content:center;overflow:hidden}
+/* Logo 素材是 262×155 的矢量：用 max-* 双向约束，栏高变化时自动内缩而不溢出 */
+.logo-stage img{display:block;width:50%;max-width:50%;max-height:78%;height:auto}
+.logo-stage--grid{
+  background-image:
+    linear-gradient(var(--grid) 2px,transparent 2px),
+    linear-gradient(90deg,var(--grid) 2px,transparent 2px);
+  background-size:44px 44px;
+}
+.logo-clear-zone{position:relative;width:70%;padding:10.5%;border:3px dashed var(--stone);background:var(--paper)}
+.logo-clear-zone img{width:100%;height:auto}
+.logo-clear-zone::before,
+.logo-clear-zone::after{position:absolute;font-family:var(--font-display);font-size:var(--text-body);color:var(--vermilion)}
+.logo-clear-zone::before{content:"1X";left:4%;top:50%;transform:translateY(-50%)}
+.logo-clear-zone::after{content:"1X";top:3%;left:50%;transform:translateX(-50%)}
+.logo-caption{position:absolute;left:16px;bottom:16px;font-size:var(--text-system);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)}
+.logo-config-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--gap);flex:1 1 auto}
+.logo-card{border:var(--border-heavy);display:flex;flex-direction:column;min-width:0}
+.logo-card-visual{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:32px;background:var(--paper)}
+.logo-card-visual--dark{background:var(--slate)}
+.logo-card-visual>img{display:block;width:78%;max-width:78%;max-height:100%;height:auto}
+.logo-card-copy{border-top:var(--border-heavy);padding:16px;background:var(--paper)}
+.logo-card-copy>*+*{margin-top:7px}
+.logo-lockup{display:flex;align-items:center;justify-content:center;color:var(--slate)}
+.logo-lockup img{display:block;height:auto}
+.logo-lockup--horizontal{gap:var(--gap-sm)}
+.logo-lockup--horizontal img{width:128px}
+.logo-lockup--horizontal span{font-family:var(--font-display);font-size:var(--text-lockup-horizontal);letter-spacing:.04em;line-height:1}
+.logo-lockup--stacked{flex-direction:column;gap:var(--gap-sm)}
+.logo-lockup--stacked img{width:172px}
+.logo-lockup--stacked span{font-family:var(--font-display);font-size:var(--text-lockup-stacked);letter-spacing:.04em;line-height:1}
+.logo-bg-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-sm);flex:1 1 auto}
+.logo-bg{position:relative;display:flex;align-items:center;justify-content:center;border:var(--border-heavy);min-height:0}
+.logo-bg img{display:block;width:54%;max-width:54%;max-height:66%;height:auto}
+.logo-bg span{position:absolute;left:16px;bottom:12px;font-size:var(--text-micro);font-weight:700;letter-spacing:.1em;line-height:1.5;text-transform:uppercase}
+.logo-misuse-visual{
+  flex:0 0 auto;height:128px;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;border-bottom:var(--border-mid);background:var(--paper);
+}
+.logo-misuse-visual img{display:block;width:56%;height:auto}
+.logo-misuse--stretch img{transform:scaleX(1.45)}
+.logo-misuse--gradient,
+.logo-misuse--split{
+  width:62%;height:86%;
+  -webkit-mask:url("interactive_20260825/meikku_logo_highfive_slate.svg") center/contain no-repeat;
+  mask:url("interactive_20260825/meikku_logo_highfive_slate.svg") center/contain no-repeat;
+}
+.logo-misuse--gradient{background:linear-gradient(90deg,var(--ultramarine),var(--vermilion))}
+.logo-misuse--split{background:linear-gradient(90deg,var(--cadmium) 0 49%,var(--ultramarine) 51% 100%)}
+.logo-misuse--effects img{filter:drop-shadow(10px 10px 0 var(--ultramarine));outline:4px solid var(--vermilion)}
+.logo-misuse--rotate img{transform:rotate(15deg)}
+.logo-misuse--crowd{align-items:flex-start;justify-content:flex-start}
+.logo-misuse--crowd img{width:82%;transform:translate(-32px,-24px)}
+.logo-misuse--noise{background:repeating-linear-gradient(37deg,var(--slate) 0 11px,var(--paper) 11px 22px,var(--vermilion) 22px 33px,var(--cadmium) 33px 44px)}
+.logo-misuse--noise img{width:62%}
+.logo-misuse--tiny img{width:38px}
+
+/* 品牌锚点页：图版内是矢量或方形素材，用居中而非铺满 */
+.anchor-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;position:absolute;inset:0;padding:6%}
+.anchor-lockup img{width:46%;height:auto}
+.anchor-lockup__word{font-family:var(--font-display);font-size:var(--text-display-section);letter-spacing:0.04em;line-height:1}
+/* 锚点图说是「小标题 + 正文」，不能继承 figcaption 的全大写系统标签样式 */
+.figure figcaption.anchor-caption{
+  padding:16px;
+  font-size:var(--text-body-compact);
+  font-weight:400;
+  letter-spacing:0.01em;
+  text-transform:none;
+}
+.figure figcaption.anchor-caption>*+*{margin-top:8px}
+
+/* SO-101 姿态控制条 */
+.pose-strip{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;
+  flex:0 0 auto;min-height:0;
+  border:var(--border-heavy);background:var(--clay);padding:var(--pad-panel);
+}
+.pose-strip .figure{border:0;background:transparent}
+.pose-strip .plate{border:var(--border-mid);background:var(--paper)}
+.pose-strip figcaption{border-top:0;padding:9px 0 0;font-size:var(--text-micro);letter-spacing:0.04em}
+
+/* 令牌页：两张 1:1 的 Rhino 渲染并排。宽度收到 76%，
+   让下方三块说明面板拿到足够高度，而不是把图挤扁。 */
+.token-faces{display:grid;grid-template-columns:1fr 1fr;width:66%;flex:0 0 auto}
+.token-faces .plate{border-right:var(--border-heavy)}
+.token-faces .plate+.plate{border-right:0}
+.token-faces figcaption{grid-column:1/-1}
+
+/* 移动端壁纸组 */
+/* 竖版壁纸靠栏高驱动：必须 stretch，否则 .figure--fit 的图版会塌成 0 高 */
+.mobile-set{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap);align-items:stretch;min-height:0}
+.mobile-set .figure{min-height:0}
+.icon-spec{display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+.icon-spec .figure{align-self:start;width:62%;flex:0 0 auto}
+.icon-rule{border-top:var(--border-heavy);padding-top:20px}
+.icon-rule>*+*{margin-top:8px}
+
+/* 壁纸接触表 */
+.wallpaper-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;flex:0 0 auto}
+
+/* UI 素材 v2 联览构件：物件格、图章格、条带与图案瓦片 */
+.asset-grid{display:grid;grid-template-columns:repeat(var(--ac,9),minmax(0,1fr));gap:var(--gap-xs);align-content:start;min-height:0}
+.asset-cell{border:var(--border-mid);background:var(--clay);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:10px 8px 8px;gap:6px;min-width:0}
+.asset-cell img{width:100%;height:auto;max-height:92px;object-fit:contain;display:block}
+.asset-cell span{font-size:var(--text-fine);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--stone);text-align:center;line-height:1.2}
+.asset-cell--paper{background:var(--paper)}
+.asset-cell--dark{background:var(--slate)}
+.asset-cell--dark span{color:var(--grid)}
+.asset-strip{border:var(--border-mid);background:var(--paper);padding:8px 10px;min-width:0}
+.asset-strip img{display:block;width:100%;height:auto}
+.asset-strip figcaption{padding:6px 2px 0;font-size:var(--text-fine);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--stone)}
+.pattern-tile{border:var(--border-mid);min-height:110px;background-color:var(--paper);background-size:72px auto}
+
+/* 版本历史表：固定列宽，版本号与日期不换行 */
+.version-table{table-layout:fixed}
+.version-table th,.version-table td{padding:12px 14px;line-height:1.35}
+.version-table th:first-child,.version-table td:first-child{width:80px}
+.version-table th:nth-child(2),.version-table td:nth-child(2){width:132px;white-space:nowrap}
+.version-table td{font-size:var(--text-body-compact)}
+.version-table th{font-size:var(--text-system)}
+
+/* ============================================================
+   8. 打印与屏幕预览
+   ============================================================ */
+@page{
+  size:297mm 167mm;   /* A4 横向宽度下的真 16:9，无黑边、无留白 */
+  margin:0;
+}
+/*
+  备用方案：若某个浏览器打印时不支持 zoom，导致内容被裁切，
+  把上面的 @page 换成下面这行并删掉 .page 的 zoom：
+      @page{ size:508mm 285.75mm; margin:0; }
+  508 × 285.75mm 正好等于 1920 × 1080px @96dpi，1:1 输出，只是 PDF 页面尺寸较大。
+*/
+@media print{
+  html{background:#fff}
+  .page{
+    margin:0;
+    zoom:0.584;                 /* 1920 × 1080px → 296.7 × 166.9mm，留出不足 1mm 的安全余量 */
+    break-after:page;
+    page-break-after:always;
+    box-shadow:none;
+  }
+  .page:last-child{break-after:auto;page-break-after:auto}
+  .screen-only{display:none !important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* 屏幕上缩放到窗口宽度，方便预览 */
+@media screen and (max-width:1960px){
+  body{zoom:0.62}
+}
+</style>
+<style id="portfolio-fit">
+  /* Portfolio mount. The sheet above pins screen zoom to a fixed 0.62; inside an
+     embed narrower than 1190px that still overflows, so the step is released here
+     and set fluidly from the viewport by the script at the end of the document. */
+  @media screen and (max-width:1960px){ body{ zoom:1 } }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     01 · 封面
+     ============================================================ -->
+<section class="page cover">
+  <div class="row row--between">
+    <div class="sys">Visual identity &amp; brand system manual</div>
+    <div class="sys" style="text-align:right">Edition 01<br>2026 · 08 · 13</div>
+  </div>
+
+  <div>
+    <div class="cover-identity">
+      <img class="cover-logo" src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Meikku human and robot high-five logo">
+      <div class="cover-mark">MEIKKU</div>
+    </div>
+    <hr class="rule" style="margin:26px 0 22px">
+    <div class="h-statement">BRAND<br>GUIDELINES</div>
+    <p class="body-lg" style="margin-top:26px;max-width:34em">
+      Everyone has had the feeling: this would be better with someone. Meikku is an AI that
+      shows up as your plus one — sits down, makes something with you, and picks up where
+      you left off.
+    </p>
+  </div>
+
+  <div>
+    <!-- 三层次：PAPER/SLATE 负责结构，四个颜料色负责表达，中间灰阶退到第三级。
+         颜料不绑定人、机器人或状态；具体项目需要时再声明局部图例。 -->
+    <div class="pal" style="margin-bottom:24px">
+
+      <div>
+        <div class="pal-lab"><b>01</b> Foundation — the two extremes</div>
+        <div class="pal-row pal-row--lead">
+          <i class="fill-paper"><b>PAPER</b><span>#FCFCFA · light</span></i>
+          <i class="fill-slate"><b>SLATE</b><span>#232322 · dark</span></i>
+        </div>
+      </div>
+
+      <div>
+        <div class="pal-lab"><b>02</b> Pigments — the shared expressive field</div>
+        <div class="pal-row pal-row--pigment">
+          <i class="fill-ultramarine"><b>BLUE</b><span>#1052CC</span></i>
+          <i class="fill-viridian"><b>GREEN</b><span>#0E7A42</span></i>
+          <i class="fill-cadmium"><b>YELLOW</b><span>#F7C600</span></i>
+          <i class="fill-vermilion"><b>RED</b><span>#D42718</span></i>
+        </div>
+      </div>
+
+      <div>
+        <div class="pal-lab"><b>03</b> Support — the quiet ramp between</div>
+        <div class="pal-row pal-row--support">
+          <i class="fill-clay"><b>CANVAS</b><span>#EBEBE7</span></i>
+          <i class="fill-grid"><b>GRID</b><span>#D8D8D3</span></i>
+          <i class="fill-stone"><b>STONE</b><span>#5C5C58</span></i>
+        </div>
+      </div>
+
+    </div>
+    <div class="row row--between">
+      <div class="sys">Meikku · ATStudio Two · SCI-Arc</div>
+      <div class="sys">Document V2.16 · 49 pages · Internal</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     02 · 目录 / 如何使用
+     ============================================================ -->
+<section class="page" id="contents">
+  <div class="page-head">
+    <span class="ch">00</span><span class="name">Contents</span>
+    <span class="note">Eight chapters, forty-nine pages, one visual system</span>
+  </div>
+  <div class="page-body body--loose">
+    <p class="body-lg">
+      Read the manual as a sequence of visual decisions, not a database. Detailed specifications
+      live on the page where they are used; the contents only shows the eight major chapters.
+    </p>
+    <div class="chapter-list">
+      <div>
+        <div class="chapter-row"><span class="n">01</span><span class="t">Foundation<small>Position, feeling, principles</small></span><span class="p">03–04</span></div>
+        <div class="chapter-row"><span class="n">02</span><span class="t">Identity<small>Logo construction, variants, backgrounds, misuse</small></span><span class="p">05–08</span></div>
+        <div class="chapter-row"><span class="n">03</span><span class="t">Visual System<small>Color, type, graphic grammar, effects</small></span><span class="p">09–17</span></div>
+        <div class="chapter-row"><span class="n">04</span><span class="t">Art Direction<small>Imagery and cross-format applications</small></span><span class="p">18–20</span></div>
+      </div>
+      <div>
+        <div class="chapter-row"><span class="n">05</span><span class="t">Brand Extensions<small>Anchors, token, merchandise, public campaign</small></span><span class="p">21–28</span></div>
+        <div class="chapter-row"><span class="n">06</span><span class="t">Interface Assets<small>Wallpapers, icons, objects, frames, containers, controls, scene art</small></span><span class="p">29–38</span></div>
+        <div class="chapter-row"><span class="n">07</span><span class="t">Product World<small>Starter kit, pose grammar, tools, memory, workshop</small></span><span class="p">39–43</span></div>
+        <div class="chapter-row"><span class="n">08</span><span class="t">Governance<small>Anti-patterns, assets, approvals, version log</small></span><span class="p">44–49</span></div>
+      </div>
+    </div>
+    <div class="row" style="gap:28px">
+      <p class="quiet-note"><b>Source of truth:</b> MEIKKU_DESIGN_DNA.md. This manual defines visual language; it does not define product capability or architecture.</p>
+      <p class="quiet-note"><b>Before shipping:</b> use pages 38–39 as a short visual and honesty check. Keep product and campaign direction separate from runtime proof.</p>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     03 · 01 品牌基础
+     ============================================================ -->
+<section class="page" id="foundation-definition">
+  <div class="page-head">
+    <span class="ch">01</span><span class="name">Brand Foundation</span>
+    <span class="note">An addition to the day, never a remedy for it</span>
+  </div>
+  <div class="page-body body--loose">
+    <div class="statement-field">
+      <div class="sys">The one-line definition</div>
+      <div class="h-sec">
+        MEIKKU IS AN AI THAT SHOWS UP AS YOUR PLUS ONE,<br>
+        MAKES SOMETHING WITH YOU,<br>
+        AND PICKS UP WHERE YOU LEFT OFF.
+      </div>
+      <div class="pal-row pal-row--bare">
+        <i class="fill-ultramarine"></i>
+        <i class="fill-viridian"></i>
+        <i class="fill-cadmium"></i>
+        <i class="fill-vermilion"></i>
+      </div>
+    </div>
+    <div class="statement-notes">
+      <div class="panel panel--slate">
+        <div class="h-mini">THE FEELING</div>
+        <p class="body-lg">Someone showed up to make with me. We changed our minds together, and the clay kept the trace.</p>
+      </div>
+      <div class="panel panel--clay">
+        <div class="sys">Which words to use</div>
+        <p class="body-compact"><b>Plus one</b> in public, emotional, and narrative work. <b>Co-making</b> in research and mechanism work. Two framings of one project — never competing definitions.</p>
+        <p class="body-compact">Never frame Meikku as filling a deficit, curing loneliness, or replacing human connection.</p>
+      </div>
+      <div class="panel">
+        <div class="sys">Visual lineage</div>
+        <p class="body-compact">Oil paint · Bauhaus · Mondrian · LEGO. Familiar material color, hard structure, open recombination.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     04 · 01 品牌原则
+     ============================================================ -->
+<section class="page" id="foundation-principles">
+  <div class="page-head">
+    <span class="ch">01</span><span class="name">Brand Principles</span>
+    <span class="note">Four actions, and the moments they belong to</span>
+  </div>
+  <div class="page-body body--loose">
+    <p class="body-lg">The brand is not a personality costume for a robot. It is the visible rhythm of two participants making something together.</p>
+    <div class="principle-grid">
+      <div class="principle"><span class="badge badge--ultramarine">01</span><div><div class="h-subhead">SHOW UP AS A PLUS ONE</div><p class="body">Join the table as a participant, not a tool awaiting instructions. Initiate, notice, question, and propose as readily as you listen.</p></div></div>
+      <div class="principle"><span class="badge badge--cadmium">02</span><div><div class="h-subhead">CONVERSE, DON'T COMMAND</div><p class="body">Words, tone, gesture, gaze, and hands carry meaning at once. Either participant may redirect. No command syntax, no approval gate.</p></div></div>
+      <div class="principle"><span class="badge badge--viridian">03</span><div><div class="h-subhead">LET MATERIAL ANSWER</div><p class="body">Resistance, collapse, texture, and surprise can redirect what both participants try next. The clay is the excuse and the evidence.</p></div></div>
+      <div class="principle"><span class="badge badge--vermilion">04</span><div><div class="h-subhead">KEEP THE SHARED MEMORY</div><p class="body">Return only to episodes that actually happened, visible and correctable, so the next session picks up where the last one left off.</p></div></div>
+    </div>
+    <div>
+      <div class="sys" style="margin-bottom:12px">Clay is the first scene · the model travels to any moment that is better with someone</div>
+      <div class="rule-strip">
+        <div><b>The weekend project</b><span>You keep meaning to start it.</span></div>
+        <div><b>One more player</b><span>The game needs a plus one to get going.</span></div>
+        <div><b>The weekday evening</b><span>You want to make something, and talking would make it better.</span></div>
+        <div><b>The first attempt</b><span>A hobby you always wanted to try never quite lands alone.</span></div>
+        <div><b>Fishing</b><span>Half the point is having someone to talk to.</span></div>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     05 · 02 Logo 构成与安全间距
+     ============================================================ -->
+<section class="page" id="logo-construction">
+  <div class="page-head">
+    <span class="ch">02</span><span class="name">Logo — Construction &amp; Clear Space</span>
+    <span class="note">One mutual gesture; no hidden ownership</span>
+  </div>
+  <div class="page-body body--split split--data">
+    <div class="stack">
+      <div class="logo-stage logo-stage--grid fill">
+        <img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Official Meikku high-five logo">
+        <span class="logo-caption">Official primary symbol · original vector geometry</span>
+      </div>
+      <div class="logo-stage fill">
+        <div class="logo-clear-zone">
+          <img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Meikku logo clear-space diagram">
+        </div>
+        <span class="logo-caption">X = ¼ of the symbol height</span>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="panel">
+        <div class="h-mini">THE IDEA IN ONE GESTURE</div>
+        <p class="body">A person and a robot meet as equal participants at the instant of a high-five. Neither figure owns a color; difference comes from form. The three rays make the shared action—not either actor—the focal point.</p>
+      </div>
+      <div class="panel fill">
+        <div class="h-mini">CLEAR SPACE &amp; SIZE</div>
+        <p class="body">Keep <b>1 × X</b> on every side. X equals one quarter of the symbol height.</p>
+        <table>
+          <thead><tr><th>Medium</th><th>Minimum width</th></tr></thead>
+          <tbody>
+            <tr><td>Screen / UI</td><td class="num">72 px</td></tr>
+            <tr><td>Deck / video</td><td class="num">120 px</td></tr>
+            <tr><td>Print</td><td class="num">18 mm</td></tr>
+            <tr><td>Embroidery / laser</td><td class="num">30 mm</td></tr>
+          </tbody>
+        </table>
+        <p class="cap">Below these thresholds, use the name MEIKKU in Bungee without the symbol.</p>
+      </div>
+      <div class="panel panel--clay">
+        <div class="sys">Do not redraw</div>
+        <p class="body">Keep both figures, the meeting hands, and all three impact rays intact. Scale proportionally from the supplied vector.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     06 · 02 Logo 变体
+     ============================================================ -->
+<section class="page" id="logo-configurations">
+  <div class="page-head">
+    <span class="ch">02</span><span class="name">Logo — Approved Configurations</span>
+    <span class="note">One symbol; four controlled presentations</span>
+  </div>
+  <div class="page-body body--loose">
+    <div class="logo-config-grid">
+      <div class="logo-card">
+        <div class="logo-card-visual"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Slate Meikku high-five symbol"></div>
+        <div class="logo-card-copy"><div class="sys">A · Primary symbol</div><p class="cap">Slate on paper. Default for documents, packaging, signage, and marks above minimum size.</p></div>
+      </div>
+      <div class="logo-card">
+        <div class="logo-card-visual logo-card-visual--dark"><img src="interactive_20260825/meikku_logo_highfive_paper.svg" alt="Reversed Meikku high-five symbol"></div>
+        <div class="logo-card-copy"><div class="sys">B · Reversed symbol</div><p class="cap">Paper on slate or a protected dark plate. Never use stone grey as the reversed ink.</p></div>
+      </div>
+      <div class="logo-card">
+        <div class="logo-card-visual"><div class="logo-lockup logo-lockup--horizontal"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt=""><span>MEIKKU</span></div></div>
+        <div class="logo-card-copy"><div class="sys">C · Horizontal name lockup</div><p class="cap">Symbol plus MEIKKU in Bungee. Use when the audience may not yet know the name.</p></div>
+      </div>
+      <div class="logo-card">
+        <div class="logo-card-visual"><div class="logo-lockup logo-lockup--stacked"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt=""><span>MEIKKU</span></div></div>
+        <div class="logo-card-copy"><div class="sys">D · Stacked name lockup</div><p class="cap">For square fields and vertical labels. Keep the symbol centered over the name.</p></div>
+      </div>
+    </div>
+    <div class="rule-pair">
+      <div class="panel panel--clay"><div class="sys">Name relationship</div><p class="body">The symbol is the logo. MEIKKU is an approved Bungee name pairing, not a second illustrated mark. Keep the name in slate or paper with the symbol.</p></div>
+      <div class="panel panel--slate"><div class="h-mini">FILE HANDLING</div><p class="body">Use SVG for layouts and EPS for vendors. The PNG is a review preview, not production artwork.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     07 · 02 Logo 背景
+     ============================================================ -->
+<section class="page" id="logo-backgrounds">
+  <div class="page-head">
+    <span class="ch">02</span><span class="name">Logo — Backgrounds</span>
+    <span class="note">The symbol stays monochrome; the field may change</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <div class="logo-bg-grid">
+      <div class="logo-bg fill-paper"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Slate logo on paper"><span>Paper · slate mark</span></div>
+      <div class="logo-bg fill-slate"><img src="interactive_20260825/meikku_logo_highfive_paper.svg" alt="Paper logo on slate"><span>Slate · paper mark</span></div>
+      <div class="logo-bg fill-cadmium"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Slate logo on cadmium yellow"><span>Yellow · slate mark</span></div>
+      <div class="logo-bg fill-ultramarine"><img src="interactive_20260825/meikku_logo_highfive_paper.svg" alt="Paper logo on ultramarine blue"><span>Blue · paper mark</span></div>
+    </div>
+    <div class="notes">
+      <div class="panel panel--slate fill"><div class="h-mini">ONE MONOCHROME MARK</div><p class="body-lg">Never color the person and robot separately. Equality is carried by the gesture, not by opposing teams.</p></div>
+      <div class="panel"><div class="sys">Light fields</div><p class="body">Use slate on paper, clay, grid, yellow, kraft, or any pale photographic plate.</p></div>
+      <div class="panel"><div class="sys">Dark fields</div><p class="body">Use paper on slate, blue, green, red, or a protected dark photographic plate.</p></div>
+      <div class="panel panel--clay"><div class="sys">Photography</div><p class="body">Always add a solid paper or slate plate. Do not place the detailed silhouette directly on visual noise.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     08 · 02 Logo 误用
+     ============================================================ -->
+<section class="page" id="logo-misuse">
+  <div class="page-head">
+    <span class="ch">02</span><span class="name">Logo — Misuse</span>
+    <span class="note">Protect the gesture before decorating it</span>
+  </div>
+  <div class="page-body body--tight">
+    <p class="body-lg" style="max-width:52em">Keep the full human–robot action intact. If the symbol cannot remain legible, use the name alone.</p>
+    <div class="grid-4 fill" style="gap:20px">
+      <div class="dont">
+        <div class="top"><span>✕</span> 01 · DO NOT STRETCH</div>
+        <div class="logo-misuse-visual logo-misuse--stretch"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Stretched logo misuse"></div>
+        <div class="bd">Scale proportionally.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 02 · DO NOT USE A GRADIENT</div>
+        <div class="logo-misuse-visual"><div class="logo-misuse--gradient"></div></div>
+        <div class="bd">Use one monochrome ink.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 03 · DO NOT ADD EFFECTS</div>
+        <div class="logo-misuse-visual logo-misuse--effects"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Logo with effects misuse"></div>
+        <div class="bd">No glow, stroke, or shadow.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 04 · DO NOT ROTATE</div>
+        <div class="logo-misuse-visual logo-misuse--rotate"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Rotated logo misuse"></div>
+        <div class="bd">Keep the approved orientation.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 05 · DO NOT CROWD</div>
+        <div class="logo-misuse-visual logo-misuse--crowd"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Crowded logo misuse"></div>
+        <div class="bd">Keep the 1 × X clear zone.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 06 · DO NOT SPLIT THE PARTNERS</div>
+        <div class="logo-misuse-visual"><div class="logo-misuse--split"></div></div>
+        <div class="bd">Do not assign actor colors.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 07 · DO NOT PLACE ON NOISE</div>
+        <div class="logo-misuse-visual logo-misuse--noise"><img src="interactive_20260825/meikku_logo_highfive_paper.svg" alt="Logo on visual noise misuse"></div>
+        <div class="bd">Add a solid contrast plate.</div>
+      </div>
+      <div class="dont">
+        <div class="top"><span>✕</span> 08 · DO NOT USE TOO SMALL</div>
+        <div class="logo-misuse-visual logo-misuse--tiny"><img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Logo used too small"></div>
+        <div class="bd">Below minimum, use MEIKKU only.</div>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     09 · 03 结构底色与支持中性色
+     ============================================================ -->
+<section class="page" id="color-foundation">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Color — Foundation &amp; Support</span>
+    <span class="note">Two structural poles; three quiet supporting neutrals</span>
+  </div>
+  <div class="page-body body--loose">
+    <p class="body-lg"><b>Paper and slate carry the brand structure.</b> The grey ramp is useful, but it stays visually and narratively tertiary.</p>
+    <div class="grid-2 fill" style="gap:28px">
+      <div class="swatch">
+        <div class="chip fill-paper"></div>
+        <div class="meta"><div class="nm">PAPER</div><div class="rl">#FCFCFA · field, space, light</div><dl><div><dt>RGB</dt><dd>252 252 250</dd></div><div><dt>TOKEN</dt><dd>--meikku-paper</dd></div></dl></div>
+      </div>
+      <div class="swatch">
+        <div class="chip fill-slate"></div>
+        <div class="meta"><div class="nm">SLATE</div><div class="rl">#232322 · type, keyline, dark field</div><dl><div><dt>RGB</dt><dd>35 35 34</dd></div><div><dt>TOKEN</dt><dd>--meikku-slate</dd></div></dl></div>
+      </div>
+    </div>
+    <div>
+      <div class="sys" style="margin-bottom:12px">03 · Support — keep it quiet</div>
+      <div class="grid-3" style="gap:20px">
+        <div class="panel panel--clay"><b>CANVAS · #EBEBE7</b><p class="cap">Material field and soft surface.</p></div>
+        <div class="panel fill-grid"><b>GRID · #D8D8D3</b><p class="cap">Dividers and workspace texture.</p></div>
+        <div class="panel fill-stone"><b>STONE · #5C5C58</b><p class="cap" style="color:var(--paper)">Captions and quiet attribution.</p></div>
+      </div>
+    </div>
+    <p class="quiet-note">No pure black, no extra neutral step, and no opacity-built ramp. The support colors should never become the page's first read.</p>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     10 · 03 四个共享颜料色
+     ============================================================ -->
+<section class="page" id="color-pigments">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Color — The Shared Pigments</span>
+    <span class="note">Four inherited colors; no fixed owners</span>
+  </div>
+  <div class="page-body">
+    <p class="body-lg" style="max-width:60em">
+      <b>Four inherited pigments stay at full strength.</b> They carry the continuity of paint tubes,
+      Bauhaus, Mondrian, and LEGO-like recombination without assigning permanent owners.
+    </p>
+
+    <div class="grid-4 hold">
+      <div class="swatch swatch--compact">
+        <div class="chip fill-ultramarine"></div>
+        <div class="meta"><div class="nm">BLUE</div><div class="rl">Ultramarine · #1052CC</div><p class="cap">Deep, direct, never neon.</p></div>
+      </div>
+      <div class="swatch swatch--compact">
+        <div class="chip fill-viridian"></div>
+        <div class="meta"><div class="nm">GREEN</div><div class="rl">Viridian · #0E7A42</div><p class="cap">Dense, material, full-strength.</p></div>
+      </div>
+      <div class="swatch swatch--compact">
+        <div class="chip fill-cadmium"></div>
+        <div class="meta"><div class="nm">YELLOW</div><div class="rl">Cadmium · #F7C600</div><p class="cap">Warm and light-bearing; use slate text.</p></div>
+      </div>
+      <div class="swatch swatch--compact">
+        <div class="chip fill-vermilion"></div>
+        <div class="meta"><div class="nm">RED</div><div class="rl">Vermilion · #D42718</div><p class="cap">Warm red-orange, never fluorescent.</p></div>
+      </div>
+    </div>
+
+    <div class="grid-3 fill">
+      <div class="panel">
+        <div class="sys">Shared, not split</div>
+        <p class="body">
+          Do not code the person as warm and the robot as cool. When two pigments appear, treat
+          them as two voices at the same table: they may alternate, overlap, exchange emphasis,
+          or be shared. The relationship is the identity; color ownership is not.
+        </p>
+      </div>
+      <div class="panel panel--clay">
+        <div class="sys">Local legend rule</div>
+        <p class="body">
+          A UI, diagram or story may assign temporary meanings when needed. Declare that legend
+          inside the artifact and repeat it with labels, shapes or patterns — never color alone.
+          Do not promote a local assignment into a permanent brand law.
+        </p>
+      </div>
+      <div class="panel kraft-card">
+        <div class="kraft-card__chip" aria-hidden="true"></div>
+        <div class="kraft-card__copy">
+          <div class="sys">Physical material only</div>
+          <div class="h-mini">KRAFT</div>
+          <p class="cap">Packaging, exhibition labels, and cardboard texture. Never part of the screen palette.</p>
+          <div class="kraft-card__data sys">
+            <span>HEX · #C9A87C</span>
+            <span>CMYK · 22 33 55 3</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     11 · 03 字体系统
+     ============================================================ -->
+<section class="page" id="type-system">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Typography — System</span>
+    <span class="note">Two families, no third</span>
+  </div>
+  <div class="page-body body--tight">
+
+    <div class="panel panel--slate">
+      <div class="row row--center" style="gap:40px">
+        <div class="h-callout hold">TWO FAMILIES.<br>NO THIRD.</div>
+        <p class="body fill">
+          <b>Bungee</b> speaks in display moments.<br>
+          <b>Space Grotesk</b> carries every sentence, caption, label, and value.<br>
+          <span style="color:var(--grid)">Build system character through weight, tracking, rules, and tabular figures — not a third font.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2 fill" style="gap:26px">
+
+      <div class="specimen">
+        <div class="row row--between" style="margin-bottom:16px">
+          <div class="h-mini">BUNGEE</div>
+          <div class="sys" style="color:var(--stone)">Display · single weight · uppercase only</div>
+        </div>
+        <div class="glyphs">ABCDEFGHIJKLM<br>NOPQRSTUVWXYZ<br>0123456789</div>
+        <hr class="rule" style="margin:18px 0 14px">
+        <div class="h-callout">MAKE IT ROUND</div>
+        <p class="cap" style="margin-top:14px">
+          Minimum usable size <b>14px / 10pt</b> — below that it collapses into noise.
+          Never set a paragraph, a filename, a numeric value, or any text under 14px in Bungee.
+        </p>
+      </div>
+
+      <div class="specimen">
+        <div class="row row--between" style="margin-bottom:16px">
+          <div class="h-mini">SPACE GROTESK</div>
+          <div class="sys" style="color:var(--stone)">Body · 300 / 400 / 500 / 700</div>
+        </div>
+        <div class="glyphs-body">ABCDEFGHIJKLM<br>nopqrstuvwxyz<br>0123456789</div>
+        <hr class="rule" style="margin:18px 0 14px">
+        <p class="body weight-sample">400 — Regular: captions, wall body, fine print.</p>
+        <p class="body weight-sample weight-sample--medium">500 — Medium: the default body voice.</p>
+        <p class="body weight-sample weight-sample--bold">700 — Bold: emphasis, values, subheads.</p>
+        <p class="sys">700 UPPERCASE 0.08EM — SYSTEM DATA · CONFIDENCE 0.82 · DEPTH 4.2 MM</p>
+      </div>
+
+    </div>
+
+    <div class="rule-pair">
+      <div class="panel panel--clay">
+        <div class="sys">Fallback</div>
+        <p class="body">Bungee → Arial Black / Impact. Space Grotesk → Helvetica Neue / Arial. Preserve the two roles; never substitute a serif.</p>
+      </div>
+      <div class="panel panel--redline">
+        <div class="sys">Never</div>
+        <p class="body">A third family · serif or script · Bungee body copy · Bungee below 14px · lowercase Bungee · tracking below −0.02em.</p>
+      </div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     12 · 03 字体层级
+     ============================================================ -->
+<section class="page" id="type-hierarchy">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Typography — Manual Hierarchy</span>
+    <span class="note">One text role, one format, across all forty-three pages</span>
+  </div>
+  <div class="page-body body--split split--data">
+    <div class="panel">
+      <div class="sys">Brand manual · fixed semantic ladder · 1920 × 1080 base</div>
+      <table>
+        <thead><tr><th>Role</th><th>Family</th><th class="num">Size</th><th class="num">Lead</th></tr></thead>
+        <tbody>
+          <tr><td>Section</td><td>Bungee</td><td class="num">52 px</td><td class="num">1.05</td></tr>
+          <tr><td>Statement</td><td>Bungee</td><td class="num">44 px</td><td class="num">1.1</td></tr>
+          <tr><td>Callout</td><td>Bungee</td><td class="num">36 px</td><td class="num">1.1</td></tr>
+          <tr><td>Action / subhead</td><td>Bungee</td><td class="num">30 px</td><td class="num">1.08</td></tr>
+          <tr><td>Card title</td><td>Bungee</td><td class="num">20 px</td><td class="num">1.0</td></tr>
+          <tr><td>Lead</td><td>Grotesk 500</td><td class="num">24 px</td><td class="num">1.55</td></tr>
+          <tr><td>Body</td><td>Grotesk 400</td><td class="num">18 px</td><td class="num">1.5</td></tr>
+          <tr><td>Compact body</td><td>Grotesk 400</td><td class="num">16 px</td><td class="num">1.45</td></tr>
+          <tr><td>Caption</td><td>Grotesk 400</td><td class="num">14 px</td><td class="num">1.4</td></tr>
+          <tr><td>System label</td><td>Grotesk 700 UC</td><td class="num">13 px</td><td class="num">1.5</td></tr>
+          <tr><td>Footer / micro</td><td>Grotesk 700 UC</td><td class="num">12 px</td><td class="num">1.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="notes">
+      <div class="panel panel--slate fill">
+        <div class="h-callout">LET SCALE<br>CREATE<br>THE ORDER.</div>
+        <p class="body" style="color:var(--grid)">A presentation page should reveal its title, proof object, and annotation in that order.</p>
+      </div>
+      <div class="panel panel--clay">
+        <div class="sys">Measure</div>
+        <p class="body">Body lines stay near 60 characters; captions near 45. If a paragraph exceeds the measure, split the thought rather than shrink the type.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     13 · 03 屏幕字号与间距
+     ============================================================ -->
+<section class="page" id="type-screen-spacing">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Typography — Screen &amp; Spacing</span>
+    <span class="note">Compact surfaces need fixed levels, not smaller type</span>
+  </div>
+  <div class="page-body body--split split--flat">
+    <div class="stack">
+      <div class="panel">
+        <div class="sys">Screen UI · 1080p–4K</div>
+        <table>
+          <thead><tr><th>Role</th><th>Family</th><th class="num">Size</th></tr></thead>
+          <tbody>
+            <tr><td>Panel title / mode</td><td>Bungee</td><td class="num">22–28 px</td></tr>
+            <tr><td>Button label</td><td>Bungee</td><td class="num">16–20 px</td></tr>
+            <tr><td>Status badge</td><td>Bungee</td><td class="num">14–16 px</td></tr>
+            <tr><td>Panel body</td><td>Grotesk 500</td><td class="num">14–16 px</td></tr>
+            <tr><td>Panel label</td><td>Grotesk 700</td><td class="num">12–13 px</td></tr>
+            <tr><td>Data value</td><td>Grotesk 700</td><td class="num">13–15 px</td></tr>
+            <tr><td>Tooltip / hint</td><td>Grotesk 400</td><td class="num">11–12 px</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel panel--clay fill"><p class="body"><b>Floor:</b> never render panel text below 12px. Primary controls remain at least 44px tall; secondary rows at least 40px.</p></div>
+    </div>
+    <div class="stack">
+      <div class="panel">
+        <div class="h-mini">SPACING LAWS</div>
+        <table><tbody>
+          <tr><td><b>Paragraph</b></td><td>60–65 characters</td></tr>
+          <tr><td><b>Block gap</b></td><td>1em; no indent</td></tr>
+          <tr><td><b>Title → body</b></td><td>0.75em</td></tr>
+          <tr><td><b>Data padding</b></td><td>16–20 px</td></tr>
+          <tr><td><b>Numeric columns</b></td><td>right + tabular</td></tr>
+          <tr><td><b>Uppercase tracking</b></td><td>minimum 0.04em</td></tr>
+        </tbody></table>
+      </div>
+      <div class="panel panel--slate fill">
+        <div class="h-mini">COMPACT FIVE</div>
+        <p class="body-lg"><b>20 / 16 / 14</b> Bungee<br><b>13 / 12</b> Space Grotesk</p>
+        <p class="cap">Panel title · section · action · value · field label</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     14 · 03 图形元素
+     ============================================================ -->
+<section class="page" id="graphic-elements">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Graphic Elements</span>
+    <span class="note">A small kit of repeated graphic moves</span>
+  </div>
+  <div class="page-body body--tight">
+
+    <div class="grid-4 hold">
+      <div class="panel">
+        <div class="h-mini">BORDER</div>
+        <div class="fx-swatch fill-clay"></div>
+        <p class="body"><b>3–4 px solid slate.</b> Same weight throughout one artifact. No hairlines, no stone-grey borders.</p>
+      </div>
+      <div class="panel">
+        <div class="h-mini">BLOCK SHADOW</div>
+        <div class="fx-swatch fill-paper" style="box-shadow:var(--shadow-block);margin-right:8px"></div>
+        <p class="body" style="margin-top:20px"><b>6px 6px 0 #232322.</b> Hard offset, zero blur, always down-right. Panels only — never on the logo or on text.</p>
+      </div>
+      <div class="panel">
+        <div class="h-mini">RADIUS</div>
+        <div class="fx-swatch fx-swatch--center fill-clay"><span class="h-subhead">0 PX</span></div>
+        <p class="body"><b>Zero radius</b> on all main containers, panels, buttons and badges. Rounded cards are an anti-pattern.</p>
+      </div>
+      <div class="panel">
+        <div class="h-mini">DOT GRID</div>
+        <div class="fx-swatch dotfield fill-paper"></div>
+        <p class="body"><b>24 px pitch, 2 px dots, --meikku-grid.</b> Implies a shared sketching and planning surface. Background only.</p>
+      </div>
+    </div>
+
+    <div class="panel fill">
+      <div class="h-mini">BADGES, STAMPS &amp; DIVIDERS</div>
+      <div class="row" style="flex-wrap:wrap;gap:12px;margin-top:16px">
+        <span class="badge badge--slate">DEFAULT</span>
+        <span class="badge">OUTLINE</span>
+        <span class="badge badge--ultramarine">ULTRAMARINE</span>
+        <span class="badge badge--viridian">VIRIDIAN</span>
+        <span class="badge badge--cadmium">CADMIUM</span>
+        <span class="badge badge--vermilion">VERMILION</span>
+      </div>
+      <div class="stack stack--tight" style="margin-top:22px">
+        <div><div class="cap" style="margin-bottom:6px">Heavy rule — section break</div><hr class="rule"></div>
+        <div><div class="cap" style="margin-bottom:6px">Dashed rule — candidate / provisional</div><hr class="rule rule--dashed"></div>
+        <div><div class="cap" style="margin-bottom:6px">Light rule — table row, secondary</div><hr class="rule rule--light"></div>
+      </div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     15 · 03 版面与证据边界
+     ============================================================ -->
+<section class="page" id="layout-evidence">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Layout &amp; Evidence Boundary</span>
+    <span class="note">Keep the shared material first; keep claims outside the image</span>
+  </div>
+  <div class="page-body body--loose">
+    <div class="panel panel--slate">
+      <div class="h-statement">THE SHARED MATERIAL<br>IS ALWAYS THE FIRST READ.</div>
+    </div>
+    <div class="grid-3 fill">
+      <div class="panel"><div class="h-mini">01 · COMPOSE</div><p class="body">Use poster-like scale and hard alignment. Give the page one dominant object and a clear quiet zone.</p></div>
+      <div class="panel panel--clay"><div class="h-mini">02 · CONTAIN</div><p class="body">Use boxes, slabs, stamps, and rules only when they organize information. Never stack decorative cards.</p></div>
+      <div class="panel"><div class="h-mini">03 · PROTECT</div><p class="body">Do not float translucent panels or status badges over the person–robot–clay scene.</p></div>
+    </div>
+    <div class="rule-pair">
+      <div class="panel">
+        <div class="sys">Evidence vocabulary</div>
+        <p class="body"><b>LIVE · SCRIPTED-LIVE · SIMULATED · RECORDED · CORE</b></p>
+        <p class="quiet-note">Use one term in the caption or evidence layer when capability could be misunderstood. Never use color alone as proof.</p>
+      </div>
+      <div class="panel panel--clay"><div class="sys">Product mockups</div><p class="body">Keep visual-direction imagery clean. Put provenance in the surrounding caption, not as a floating corner label inside the image.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     16 · 03 效果语言 · 主词汇
+     ============================================================ -->
+<section class="page" id="effect-primary">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Effect Language</span>
+    <span class="note">What an effect is allowed to mean</span>
+  </div>
+  <div class="page-body body--tight">
+
+    <div class="panel panel--shadow panel--blue">
+      <div class="sys">The meaning rule</div>
+      <div class="h-callout">
+        EVERY EFFECT MUST ANSWER AN ACTION QUESTION.<br>
+        IF IT ANSWERS NONE OF THEM, DELETE IT.
+      </div>
+      <p class="body">
+        What is happening to the material? · Where is the robot about to act? ·
+        What did the human change? · What changed the next proposal? ·
+        What source supports this memory?
+      </p>
+    </div>
+
+    <div class="sys" style="margin-top:8px">Approved vocabulary · colors shown here are a local example, not brand-wide semantics</div>
+
+    <div class="grid-5 fill">
+      <div class="panel panel--flush fx-card">
+        <div class="fx"><div class="fx-bar fill-ultramarine"></div></div>
+        <div class="fx-card__copy">
+          <div class="sys">Action path</div>
+          <p class="body-compact">Thick full-strength pigment trace drawn <b>directly over the workspace</b>. Its color follows the artifact's local legend.</p>
+        </div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx"><div class="fx-dash"></div></div>
+        <div class="fx-card__copy">
+          <div class="sys">Candidate path</div>
+          <p class="body-compact">Dashed slate line = an alternative that was considered but not selected.</p>
+        </div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx"><div class="fx-dot fill-cadmium"></div></div>
+        <div class="fx-card__copy">
+          <div class="sys">Contact marker</div>
+          <p class="body-compact">Pulsing dot at the proposed contact point. Identify its source with label or shape, not a fixed human/robot hue.</p>
+        </div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx fx--hatch"></div>
+        <div class="fx-card__copy">
+          <div class="sys">Protect / avoid zone</div>
+          <p class="body-compact">Flat fill, hatching or stipple. Vermilion is the page example, not a permanent warning assignment.</p>
+        </div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx"><div class="fx-box"></div></div>
+        <div class="fx-card__copy">
+          <div class="sys">Uncertainty</div>
+          <p class="body-compact">Flashing boundary, jittered hatch or noisy outline — never a soft glow.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     17 · 03 效果语言 · 次词汇
+     ============================================================ -->
+<section class="page" id="effect-secondary">
+  <div class="page-head">
+    <span class="ch">03</span><span class="name">Effect Language — Secondary Vocabulary</span>
+    <span class="note">State, uncertainty, residue, and material surface</span>
+  </div>
+  <div class="page-body">
+    <p class="body-lg">Effects explain action and change. They never perform “intelligence” as decoration.</p>
+    <div class="grid-4 fill">
+      <div class="panel panel--flush fx-card">
+        <div class="fx"><div class="fx-bar fill-viridian"></div></div>
+        <div class="fx-card__copy"><div class="sys">State change</div><p class="body-compact">Change the label or form first. A locally declared pigment may reinforce the transition.</p></div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx fx--scan"></div>
+        <div class="fx-card__copy"><div class="sys">Print texture</div><p class="body-compact">Use scanline or paper grain only where it supports the zine and workshop character.</p></div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx"><div class="fx-ghost"></div></div>
+        <div class="fx-card__copy"><div class="sys">Ghost residue</div><p class="body-compact">Keep a rejected proposal visible as a faded residue only when it supports comparison or memory.</p></div>
+      </div>
+      <div class="panel panel--flush fx-card">
+        <div class="fx fx--dots dotfield"></div>
+        <div class="fx-card__copy"><div class="sys">Dot-grid field</div><p class="body-compact">Suggest a shared planning surface while staying visually behind the action.</p></div>
+      </div>
+    </div>
+    <div class="panel panel--redline hold">
+      <div class="row" style="gap:28px">
+        <div class="h-mini hold" style="color:var(--vermilion);flex-basis:220px">FORBIDDEN<br>EFFECTS</div>
+        <p class="body-lg fill" style="margin-top:0">Chain-of-thought dumps · decorative particles · generic AI glows · glassmorphism · atmospheric gradients · cinematic 3D polish that hides weak interaction.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     18 · 04 影像与艺术指导
+     ============================================================ -->
+<section class="page" id="imagery-direction">
+  <div class="page-head">
+    <span class="ch">04</span><span class="name">Imagery &amp; Art Direction</span>
+    <span class="note">How Meikku is photographed and rendered</span>
+  </div>
+  <div class="page-body">
+
+    <div class="grid-2 fill">
+      <div class="stack stack--tight">
+        <div class="verdict verdict--do">✓ &nbsp;DO — THE CO-MAKING SCENE</div>
+        <figure class="figure figure--fit">
+          <div class="plate plate--dark">
+            <span class="plate-tag">HERO IMAGE · 3:2</span>
+            <img src="interactive_20260825/01_comaking_master.png" alt="A person and the project's exact SO-101 follower converge on the same grey clay vessel; the base remains outside and the inward-facing gripper enters the shared material zone.">
+          </div>
+        </figure>
+      </div>
+      <div class="stack stack--tight">
+        <div class="verdict verdict--no">✕ &nbsp;DON'T — THE AUTONOMOUS ROBOT HERO</div>
+        <figure class="figure figure--fit">
+          <div class="plate plate--dark">
+            <span class="plate-tag">REJECTED REFERENCE</span>
+            <img src="interactive_20260825/02_offbrand_isolated_master.png" alt="Rejected off-brand counterexample showing the same exact SO-101 isolated in a cold blue autonomous laboratory without a human co-maker.">
+          </div>
+        </figure>
+      </div>
+    </div>
+
+    <div class="rule-strip">
+      <div><b>Keep the person present.</b><span>Never crop the human out of the making frame.</span></div>
+      <div><b>Show the clay changing.</b><span>A before/after pair is stronger than a beauty shot.</span></div>
+      <div><b>Show both taking part.</b><span>The AI initiates and proposes too — never frame it as only waiting for a cue.</span></div>
+      <div><b>Keep provenance outside.</b><span>Put evidence status in the caption layer, never inside the image.</span></div>
+      <div><b>Do not lead with packaging.</b><span>Begin with the shared scene.</span></div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     19 · 04 应用场景 / 数字
+     ============================================================ -->
+<section class="page" id="applications-digital">
+  <div class="page-head">
+    <span class="ch">04</span><span class="name">Applications — Digital</span>
+    <span class="note">Deck and screen UI · two complete 16:9 compositions</span>
+  </div>
+  <div class="page-body">
+
+    <div class="grid-2 hold">
+      <figure class="figure">
+        <div class="plate r-16x9 plate--dark">
+          <img src="interactive_20260825/01_deck_slide.png" alt="Meikku presentation slide built from a dedicated proposal-discussion scene, official logo and Bungee display type.">
+        </div>
+        <figcaption>01 · Deck application · complete 16:9 composition</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="plate r-16x9 plate--dark">
+          <img src="interactive_20260825/02_screen_ui.png" alt="Meikku screen interface built from a dedicated top-down material-comparison scene with the verified SO-101.">
+        </div>
+        <figcaption>02 · Screen UI · complete 16:9 composition</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid-2 fill">
+      <div class="panel panel--clay">
+        <div class="sys">Core vs Demo — always distinguish</div>
+        <p class="body">
+          <b>Core</b> may show an ambitious product vision when it is labeled as such.
+          <b>Demo</b> keeps one main surface, distinct alternatives, clear before / after,
+          sourced memory, short labels, and no fake precision. The shared making scene stays primary.
+        </p>
+      </div>
+      <div class="panel panel--redline">
+        <div class="sys">Digital application — never</div>
+        <p class="body">
+          A dashboard that makes the shared making scene secondary · conversation shown beyond
+          what the build can actually do · approval gates or "show before you move" turn-taking ·
+          interface decoration that obscures the person, the AI, the clay, or the current choice.
+        </p>
+      </div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     20 · 04 应用场景 / 实体
+     ============================================================ -->
+<section class="page" id="applications-physical">
+  <div class="page-head">
+    <span class="ch">04</span><span class="name">Applications — Physical</span>
+    <span class="note">Poster 16:9 · packaging 3:2 · preserve both source ratios</span>
+  </div>
+  <div class="page-body">
+
+    <!-- 两块图版的 fr 值直接取自素材比例，因此高度自动对齐，无需任何裁切 -->
+    <div class="split split--mixed hold">
+      <figure class="figure">
+        <div class="plate r-16x9 plate--dark">
+          <img src="interactive_20260825/03_exhibition_poster.png" alt="Meikku exhibition poster built from a dedicated completion and high-five scene plus official identity assets.">
+        </div>
+        <figcaption>03 · Exhibition poster · A1</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="plate r-3x2 plate--dark">
+          <img src="interactive_20260825/04_packaging_master.png" alt="Meikku kraft packaging system beside the exact SO-101 in a compact inward-facing resting pose, with the official lockup printed in perspective onto the existing box lid.">
+        </div>
+        <figcaption>04 · Packaging &amp; label · physical-only kraft</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid-2 fill">
+      <div class="panel panel--clay">
+        <div class="sys">Physical application rule</div>
+        <p class="body">
+          Let the object inherit the relationship: human, robot, and shared material remain legible.
+          Use the wordmark on public-facing packaging. KRAFT belongs to physical goods only;
+          the four pigments stay available as marks, seals, or navigational accents.
+        </p>
+      </div>
+      <div class="panel panel--redline">
+        <div class="sys">Physical application — never</div>
+        <p class="body">
+          Crop the human out · lead with packaging before the act of making · repeat the icon as
+          an anonymous decorative pattern · present a visual-direction mockup as proof of a
+          manufactured or live product.
+        </p>
+      </div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     21 · 05 品牌锚点
+     ============================================================ -->
+<section class="page" id="identity-anchors">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Identity Anchors</span>
+    <span class="note">Robot, symbol, and wordmark stay fixed across every image</span>
+  </div>
+  <div class="page-body body--split split--anchor">
+    <figure class="figure figure--fit">
+      <div class="plate plate--clay">
+        <img src="interactive_20260825/so101_user_reference.png" alt="User-supplied photograph of the exact project SO-101 follower used as the hardware identity authority">
+      </div>
+      <figcaption class="anchor-caption">
+        <div class="sys">SO-101 / hardware identity authority</div>
+        <p class="body-compact">White twin-link printed frame · exposed black STS3215 servo bodies · visible red/white/black cabling · open rectangular base and controller board · long two-finger gripper. Never substitute a smooth cobot, round pedestal, perforated industrial shell, or another white arm.</p>
+      </figcaption>
+    </figure>
+    <figure class="figure figure--fit">
+      <div class="plate">
+        <div class="anchor-lockup">
+          <img src="interactive_20260825/meikku_logo_highfive_slate.svg" alt="Official Meikku high-five logo">
+          <div class="anchor-lockup__word">MEIKKU</div>
+        </div>
+      </div>
+      <figcaption class="anchor-caption">
+        <div class="sys">Identity / one symbol + one typeset name</div>
+        <p class="body-compact">The high-five symbol is the only logo. The name is always MEIKKU in Bungee, spelled M-E-I-K-K-U. Regenerate or typeset again if either anchor drifts.</p>
+      </figcaption>
+    </figure>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     22 · 05 令牌：正反面与边缘
+     ============================================================ -->
+<section class="page" id="token-system">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Token — Front, Back &amp; Edge</span>
+    <span class="note">One manufactured body · two designed faces</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/07_arcade_dash_code.png" alt="Selected black Meikku token concept showing matched logo and 1 TURN faces with the same asymmetric toothed edge">
+      </div>
+      <figcaption>Selected direction · official high-five face + denomination-led 1 TURN reverse</figcaption>
+    </figure>
+    <div class="notes notes--snug">
+      <figure class="figure token-faces">
+        <div class="plate r-1x1 plate--dark"><img src="interactive_20260825/MEIKKU_token_07_rhino_front.png" alt="Rhino render of the printable Meikku token front face"></div>
+        <div class="plate r-1x1 plate--dark"><img src="interactive_20260825/MEIKKU_token_07_rhino_back.png" alt="Rhino render of the printable Meikku token reverse face"></div>
+        <figcaption>Current 42 mm fabrication master · matched outline · shallow monochrome relief</figcaption>
+      </figure>
+      <div class="panel panel--clay"><div class="sys">Three meanings, one object</div><p class="body-compact"><b>Admission ticket</b> grants entry. <b>Arcade coin</b> grants one turn. <b>AI token</b> is consumed to make a proposal. The large 1 makes value readable before explanation.</p></div>
+      <div class="panel"><div class="sys">One coin, not two badges</div><p class="body-compact">Both faces use the same diameter, rim and single toothed edge. Front: official high-five + MEIKKU. Reverse: 1 TURN. The teeth are a tactile orientation cue, not a full gear costume.</p></div>
+      <div class="panel panel--slate"><div class="sys">Demo production boundary</div><p class="body-compact">Single material · smooth body · broad relief · no unsupported micro-detail. Rhino/Blender geometry is prepared; slicer and physical insertion still require testing.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     23 · 05 令牌：入场设备
+     ============================================================ -->
+<section class="page" id="token-equipment">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Token — Admission Equipment</span>
+    <span class="note">The value becomes a physical exhibition ritual</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/11_token_arcade_system.png" alt="Meikku token front and back displayed beside a coin-operated capsule dispenser">
+      </div>
+      <figcaption>Equipment visual direction · production token geometry follows the preceding page</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">Device role</div><p class="body-compact">Use a capsule or arcade-like mechanism so the visitor understands value, insertion, anticipation, and release without reading a software explanation. The pictured beige coin is a device mockup; manufacture the black 1 TURN geometry specified on page 22.</p></div>
+      <div class="panel"><div class="sys">Separate event from souvenir</div><p class="body-compact">The token may be spent to begin a turn; the capsule, stamped ticket root, or session record can remain with the visitor. Do not promise automatic dispensing until the physical mechanism is tested.</p></div>
+      <div class="panel"><div class="sys">Other viable equipment</div><p class="body-compact">Tabletop turnstile · simple coin slot · compact arcade cabinet · manual token press. Keep the mechanism legible and the shared making table visually primary.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     24 · 05 周边：携带与佩戴
+     ============================================================ -->
+<section class="page" id="merch-keep-carry">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Merchandise — Keep &amp; Carry</span>
+    <span class="note">Five useful objects that can leave the exhibition</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/12_merch_keep_carry.png" alt="Meikku admission ticket, pin badges, canvas tote bag, sticker sheet, and keychain">
+      </div>
+      <figcaption>Merchandise family A · entry, identity, carrying and small keepsakes</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">Use before decoration</div><p class="body-compact">Every item carries a real exhibition job: enter, identify, carry, mark, or remember. The high-five symbol and MEIKKU name act as a lockup, not a repeat pattern.</p></div>
+      <div class="extension-index"><span><b>01</b>Ticket + token</span><span><b>02</b>Pin set</span><span><b>03</b>Tote bag</span><span><b>04</b>Sticker sheet</span><span><b>05</b>Keychain</span></div>
+      <div class="panel"><div class="sys">Material direction</div><p class="body-compact">Uncoated paper · canvas · enamel · die-cut vinyl. Keep production affordable and tactility visible.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     25 · 05 周边：制作、记录与回访
+     ============================================================ -->
+<section class="page" id="merch-make-return">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Merchandise — Make, Record, Return</span>
+    <span class="note">Five objects that extend the session ritual</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/13_merch_make_record_return.png" alt="Meikku clay tool roll, session passport, embroidered patch, reusable bottle, and exhibition lanyard">
+      </div>
+      <figcaption>Merchandise family B · making tools, return memory and visible participation</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">Make the relationship portable</div><p class="body-compact">The tool roll supports making; the passport records returns; the patch, bottle, and lanyard make participation visible without turning the brand into novelty merchandise.</p></div>
+      <div class="extension-index"><span><b>06</b>Tool roll</span><span><b>07</b>Passport</span><span><b>08</b>Patch</span><span><b>09</b>Bottle</span><span><b>10</b>Lanyard/pass</span></div>
+      <div class="panel"><div class="sys">Production gate</div><p class="body-compact">Test the logo at embroidery scale, the wordmark on woven tape, and pigment contrast on canvas before committing to quantity.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     26 · 05 公共宣传：街道与立面
+     ============================================================ -->
+<section class="page" id="campaign-street">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Campaign — Street &amp; Facade</span>
+    <span class="note">Recognizable at walking distance</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/14_campaign_street.png" alt="Meikku paired street-lamp banners, facade flag, and exhibition entrance arch">
+      </div>
+      <figcaption>Campaign family A · street and facade formats shown at installed scale</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">First read</div><p class="body-compact">At distance: co-making image or logo, then MEIKKU, then pigment structure. Never ask a passerby to read a paragraph before understanding the invitation.</p></div>
+      <div class="extension-index extension-index--3"><span><b>01</b>Lamp banners</span><span><b>02</b>Facade flag</span><span><b>03</b>Entrance arch</span></div>
+      <div class="panel"><div class="sys">Scale rule</div><p class="body-compact">One dominant crop per surface. Keep the SO-101 recognizable whenever the robot appears.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     27 · 05 公共宣传：交通
+     ============================================================ -->
+<section class="page" id="campaign-transit">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Campaign — Transit</span>
+    <span class="note">Large crops, short dwell time, one invitation</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/15_campaign_transit.png" alt="Meikku subway lightbox, platform banner, and bus-shelter poster">
+      </div>
+      <figcaption>Campaign family B · three transit formats for different dwell times</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">Transit hierarchy</div><p class="body-compact">Make the shared scene readable in one glance. Use MEIKKU at full wordmark scale; event details belong in a separate production layer, not inside generated campaign art.</p></div>
+      <div class="extension-index extension-index--3"><span><b>04</b>Subway lightbox</span><span><b>05</b>Platform banner</span><span><b>06</b>Bus shelter</span></div>
+      <div class="panel"><div class="sys">Anchor check</div><p class="body-compact">Every visible robot stays SO-101. Every visible brand stays the high-five symbol plus the same Bungee MEIKKU.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     28 · 05 公共宣传：抵达场馆
+     ============================================================ -->
+<section class="page" id="campaign-venue">
+  <div class="page-head">
+    <span class="ch">05</span><span class="name">Campaign — Venue Arrival</span>
+    <span class="note">Guide the body from city to making table</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/16_campaign_venue.png" alt="Meikku wayfinding pylon, window vinyl, floor graphic, and digital marquee at the exhibition venue">
+      </div>
+      <figcaption>Campaign family C · venue arrival, confirmation and directional surfaces</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">One arrival system</div><p class="body-compact">Pylon identifies, window confirms, floor graphic directs, marquee announces. Repeat the identity, not the layout; each surface keeps one clear job.</p></div>
+      <div class="extension-index extension-index--4"><span><b>07</b>Wayfinding pylon</span><span><b>08</b>Window vinyl</span><span><b>09</b>Floor graphic</span><span><b>10</b>Digital marquee</span></div>
+      <div class="panel"><div class="sys">Final destination</div><p class="body-compact">All wayfinding resolves at the shared making table, where person, SO-101, and clay become the primary scene again.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     29 · 06 UI 素材系统
+     ============================================================ -->
+<section class="page" id="ui-art-system">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Asset System</span>
+    <span class="note">A reusable visual layer, not one decorated screen</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--plain figure--fit">
+      <div class="plate"><img src="interactive_20260825/support-assets-contact-sheet.png" alt="Meikku support asset system contact sheet showing tile patterns, dividers, empty states, loaders, cursors, and avatars"></div>
+      <figcaption>Reference translation · patterns · dividers · empty states · loaders · cursors · avatars</figcaption>
+    </figure>
+    <div class="notes notes--spread">
+      <div class="panel panel--clay"><div class="sys">What the reference clarified</div><p class="body-compact">A UI library needs a persistent visual supply: backgrounds, icons, object images, dividers, cursors, scene art, and fonts. Meikku borrows that asset-system discipline from Animal Island UI without copying its non-commercial artwork or animal-game style.</p></div>
+      <div class="panel"><div class="sys">Meikku translation</div><p class="body-compact">Every asset traces back to the same slate/paper foundation, four inherited pigments, Bungee display type, Space Grotesk body type, official high-five mark, and SO-101 morphology rule.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     30 · 06 UI 素材：壁纸
+     ============================================================ -->
+<section class="page" id="ui-art-wallpapers">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Wallpapers</span>
+    <span class="note">Desktop, mobile, branded, and clean</span>
+  </div>
+  <div class="page-body">
+    <div class="wallpaper-grid">
+      <figure class="figure figure--plain">
+        <div class="plate r-16x9"><img src="interactive_20260825/wallpaper-shared-table-branded-2560x1440.png" alt="Complete 16:9 shared-table Meikku desktop wallpaper"></div>
+        <figcaption>01 · Shared table · branded 16:9</figcaption>
+      </figure>
+      <figure class="figure figure--plain">
+        <div class="plate r-16x9"><img src="interactive_20260825/wallpaper-pigment-grid-branded-2560x1440.png" alt="Complete 16:9 pigment-grid Meikku desktop wallpaper"></div>
+        <figcaption>02 · Pigment grid · branded 16:9</figcaption>
+      </figure>
+      <figure class="figure figure--plain">
+        <div class="plate r-16x9"><img src="interactive_20260825/wallpaper-play-field-branded-2560x1440.png" alt="Complete 16:9 play-field Meikku desktop wallpaper"></div>
+        <figcaption>03 · Play field · branded 16:9</figcaption>
+      </figure>
+    </div>
+    <div class="grid-2 hold">
+      <div class="panel"><div class="sys">Branded</div><p class="body-compact">Use for launch, lock, idle, press, and exhibition holding screens. The logo and MEIKKU lockup are already positioned and must not be repeated by the consuming UI.</p></div>
+      <div class="panel panel--clay"><div class="sys">Clean</div><p class="body-compact">Use behind interface content. Clean versions preserve the same composition while removing the lockup; live text and controls remain an independent UI layer.</p></div>
+    </div>
+    <p class="quiet-note">Desktop masters ship at 2560 × 1440; the vertical set on the next page ships at 1440 × 3200. Both families exist in branded and clean variants — never rescale one family to stand in for the other.</p>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     31 · 06 UI 素材：移动端与图标
+     ============================================================ -->
+<section class="page" id="ui-art-mobile-icons">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Mobile &amp; Icons</span>
+    <span class="note">Small screens need fewer, stronger marks</span>
+  </div>
+  <div class="page-body body--split split--tall">
+    <div class="mobile-set">
+      <figure class="figure figure--plain figure--fit">
+        <div class="plate"><img src="interactive_20260825/wallpaper-shared-table-branded-1440x3200.png" alt="Complete shared-table Meikku mobile wallpaper"></div>
+        <figcaption>01 · Shared table</figcaption>
+      </figure>
+      <figure class="figure figure--plain figure--fit">
+        <div class="plate"><img src="interactive_20260825/wallpaper-pigment-grid-branded-1440x3200.png" alt="Complete pigment-grid Meikku mobile wallpaper"></div>
+        <figcaption>02 · Pigment grid</figcaption>
+      </figure>
+      <figure class="figure figure--plain figure--fit">
+        <div class="plate"><img src="interactive_20260825/wallpaper-play-field-branded-1440x3200.png" alt="Complete play-field Meikku mobile wallpaper"></div>
+        <figcaption>03 · Play field</figcaption>
+      </figure>
+    </div>
+    <aside class="icon-spec">
+      <figure class="figure figure--plain">
+        <div class="plate r-1x1"><img src="interactive_20260825/meikku-app-icon-512.png" alt="Meikku application icon with official high-five logo"></div>
+        <figcaption>App tile · 512 × 512</figcaption>
+      </figure>
+      <div class="icon-rule">
+        <div class="sys">Small-size rule</div>
+        <p class="body-compact">At 16–192px use the high-five symbol without the wordmark. At 512–1024px the full lockup may appear. Keep OS text inside the protected top band.</p>
+      </div>
+      <div class="icon-rule">
+        <div class="sys">Vertical safe band</div>
+        <p class="body-compact">The 1440 × 3200 masters reserve the upper band for clock and status glyphs. Do not raise artwork into it, and do not crop the lower band to fit a shorter device.</p>
+      </div>
+    </aside>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     32 · 06 UI 素材：图标系统
+     ============================================================ -->
+<section class="page" id="ui-art-iconography">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Iconography</span>
+    <span class="note">One stroke logic across actions, states, and objects</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--plain figure--fit">
+      <div class="plate"><img src="interactive_20260825/icon-contact-sheet.png" alt="Contact sheet of 42 Meikku semantic UI icons drawn in one unified stroke grammar"></div>
+      <figcaption>42 icons · one grammar: 5-unit stroke, 3-unit detail, one solid accent · SVG currentColor · PNG 64 / 128</figcaption>
+    </figure>
+    <div class="notes">
+      <div class="panel fill"><div class="h-mini">WEB</div><p class="cap">Prefer SVG or the provided CSS mask map. Let icons inherit text color.</p></div>
+      <div class="panel panel--clay fill"><div class="h-mini">UNITY</div><p class="cap">Import PNG 64/128 as sprites. Use static empty-state art and PNG wallpaper.</p></div>
+      <div class="panel fill"><div class="h-mini">MOBILE</div><p class="cap">Use app icons, avatars, and vertical wallpaper. Keep OS text above the safe band.</p></div>
+      <div class="panel panel--slate fill"><div class="h-mini">GRAMMAR</div><p class="cap">Primary stroke 5, detail 3, round caps, zero-radius rects, no filled silhouettes, at most one solid accent. Color never carries state alone.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     33 · 06 UI 素材：世界物件库
+     ============================================================ -->
+<section class="page" id="ui-art-world-objects">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — World Objects</span>
+    <span class="note">One drawing style, twenty-five objects, every surface</span>
+  </div>
+  <div class="page-body body--tight">
+    <div class="asset-grid fill" style="--ac:9">
+      <div class="asset-cell"><img src="interactive_20260825/object-clay-lump.svg" alt="Clay lump object illustration"><span>Clay lump</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-clay-coil.svg" alt="Clay coil object illustration"><span>Coil</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-clay-slab.svg" alt="Clay slab object illustration"><span>Slab</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-pinch-pot.svg" alt="Pinch pot object illustration"><span>Pinch pot</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-coil-vessel.svg" alt="Coil vessel object illustration"><span>Coil vessel</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-clay-bowl.svg" alt="Clay bowl object illustration"><span>Bowl</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-test-tile.svg" alt="Glaze test tile object illustration"><span>Test tile</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-rib-tool.svg" alt="Rib tool object illustration"><span>Rib</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-wire-cutter.svg" alt="Wire cutter object illustration"><span>Wire cutter</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-loop-tool.svg" alt="Loop tool object illustration"><span>Loop tool</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-paddle.svg" alt="Paddle object illustration"><span>Paddle</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-needle-tool.svg" alt="Needle tool object illustration"><span>Needle</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-brush.svg" alt="Brush object illustration"><span>Brush</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-sponge.svg" alt="Sponge object illustration"><span>Sponge</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-water-cup.svg" alt="Water cup object illustration"><span>Water cup</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-turntable.svg" alt="Turntable object illustration"><span>Turntable</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-tool-roll.svg" alt="Tool roll object illustration"><span>Tool roll</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-workspace-mat.svg" alt="Workspace mat object illustration"><span>Mat</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-kraft-box.svg" alt="Kit box object illustration"><span>Kit box</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-token.svg" alt="Token object illustration"><span>Token</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-ticket.svg" alt="Ticket object illustration"><span>Ticket</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-session-card.svg" alt="Session card object illustration"><span>Session card</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-memory-box.svg" alt="Memory box object illustration"><span>Memory box</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-specimen-tray.svg" alt="Specimen tray object illustration"><span>Specimen tray</span></div>
+      <div class="asset-cell"><img src="interactive_20260825/object-journal.svg" alt="Process journal object illustration"><span>Journal</span></div>
+    </div>
+    <div class="grid-3 hold">
+      <div class="panel panel--snug"><div class="sys">One style law</div><p class="body-compact">Flat pigment fills, 4–5 unit slate keylines, zero radius on built objects, round joins on clay. Draw a new object in this grammar rather than importing clip art.</p></div>
+      <div class="panel panel--snug panel--clay"><div class="sys">Use as punctuation</div><p class="body-compact">One to five objects per viewport at 48–160 px. Objects never tile as anonymous wallpaper — that job belongs to the pattern layer.</p></div>
+      <div class="panel panel--snug"><div class="sys">Groups</div><p class="body-compact">Material · tools · station · ritual · memory. The family covers every product-world page of this manual with the same five groups.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     34 · 06 UI 素材：对话框架与图章
+     ============================================================ -->
+<section class="page" id="ui-art-frames-stamps">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Conversation Frames &amp; Stamps</span>
+    <span class="note">Speech is an asset; a claim is a stamp</span>
+  </div>
+  <div class="page-body body--split split--even">
+    <div class="stack">
+      <div class="asset-grid fill" style="--ac:3">
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/bubble-speech-left.svg" alt="Speech bubble with lower-left tail"><span>Speech · left tail</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/bubble-speech-right.svg" alt="Speech bubble with lower-right tail"><span>Speech · right tail</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/bubble-proposal-dashed.svg" alt="Dashed proposal bubble"><span>Proposal · dashed</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-notice-taped.svg" alt="Taped notice frame"><span>Taped notice</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-evidence-tab.svg" alt="Evidence frame with claim tab"><span>Evidence + claim tab</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-corner-brackets.svg" alt="Corner bracket frame"><span>Corner brackets</span></div>
+      </div>
+      <div class="panel panel--snug hold"><div class="sys">Bubble law</div><p class="body-compact">Either participant may speak from either tail — no permanent side or pigment ownership. Dashed border always means candidate, matching the effect language. Text lives in the layout layer, never baked into the SVG.</p></div>
+    </div>
+    <div class="stack">
+      <div class="asset-grid fill" style="--ac:4">
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-live.svg" alt="LIVE claim stamp"><span>Live</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-scripted-live.svg" alt="SCRIPTED-LIVE claim stamp"><span>Scripted-live</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-simulated.svg" alt="SIMULATED claim stamp"><span>Simulated</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-recorded.svg" alt="RECORDED claim stamp"><span>Recorded</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-core.svg" alt="CORE claim stamp"><span>Core</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-one-turn.svg" alt="1 TURN token stamp"><span>1 turn</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/stamp-kept.svg" alt="KEPT memory stamp"><span>Kept</span></div>
+        <div class="asset-cell asset-cell--dark"><img src="interactive_20260825/seal-highfive.svg" alt="High-five identity seal"><span>Identity seal</span></div>
+      </div>
+      <div class="panel panel--redline hold"><div class="sys">Stamp honesty rule</div><p class="body-compact">The word carries the meaning; pigment only reinforces it. Never stamp LIVE on a simulated surface, and never let styling blur the five claim levels. The seal reuses the ray grammar but does not replace the official logo.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     35 · 06 UI 素材：横幅、按钮与计量
+     ============================================================ -->
+<section class="page" id="ui-art-banners-buttons">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Banners, Buttons &amp; Meters</span>
+    <span class="note">Plates for words; art never reshapes a control</span>
+  </div>
+  <div class="page-body">
+    <div class="asset-grid hold" style="--ac:4">
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/banner-section-plate.svg" alt="Section banner plate"><span>Section plate</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/ribbon-title.svg" alt="Title ribbon"><span>Title ribbon</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/patch-nav.svg" alt="Navigation patch"><span>Nav patch</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/flag-corner.svg" alt="Corner flag"><span>Corner flag</span></div>
+    </div>
+    <div class="asset-grid hold" style="--ac:4">
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/button-plate-default.svg" alt="Default button plate"><span>Default</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/button-plate-hover.svg" alt="Hover button plate"><span>Hover · local pigment</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/button-plate-pressed.svg" alt="Pressed button plate"><span>Pressed · shadow closes</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/button-plate-disabled.svg" alt="Disabled button plate"><span>Disabled · dashed</span></div>
+    </div>
+    <div class="split split--even fill">
+      <div class="asset-grid" style="--ac:2">
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/meter-turns.svg" alt="Token turn meter"><span>Turn meter · token slots</span></div>
+        <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/meter-session-coil.svg" alt="Session coil progress meter"><span>Session coil · progress</span></div>
+      </div>
+      <div class="notes notes--snug">
+        <div class="panel"><div class="sys">Plates carry words</div><p class="body-compact">Banner and button art ships blank. Labels are set by the consuming layout in Bungee at the screen-UI scale — 16–20 px buttons, 22–28 px panel titles — and never below the 44 px control height.</p></div>
+        <div class="panel panel--clay"><div class="sys">States are geometry</div><p class="body-compact">Hover changes fill, pressed closes the block shadow, disabled goes dashed. The pigment shown is a local example; any single pigment may be declared per artifact.</p></div>
+        <div class="panel panel--redline"><div class="sys">Meters are art</div><p class="body-compact">The filled states are illustrations for layout. A runtime surface must bind real values before showing any meter — no fake precision.</p></div>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     36 · 06 UI 素材：分隔、图案与场景边缘
+     ============================================================ -->
+<section class="page" id="ui-art-world-structure">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Dividers, Patterns &amp; Scene Edges</span>
+    <span class="note">The world grounds the page from its edges inward</span>
+  </div>
+  <div class="page-body body--tight">
+    <div class="grid-2 hold" style="gap:20px">
+      <div class="stack stack--tight">
+        <figure class="asset-strip"><img src="interactive_20260825/divider-coil-wave.svg" alt="Coil wave divider"><figcaption>Divider · coil wave</figcaption></figure>
+        <figure class="asset-strip"><img src="interactive_20260825/divider-tool-row.svg" alt="Tool row divider"><figcaption>Divider · tool row</figcaption></figure>
+        <figure class="asset-strip"><img src="interactive_20260825/divider-turn-blocks.svg" alt="Turn blocks divider"><figcaption>Divider · turn blocks</figcaption></figure>
+        <figure class="asset-strip"><img src="interactive_20260825/divider-scallop-clay.svg" alt="Clay scallop divider"><figcaption>Divider · clay scallop</figcaption></figure>
+      </div>
+      <div class="stack stack--tight">
+        <div class="grid-4" style="gap:16px">
+          <div><div class="pattern-tile" style="background-image:url('interactive_20260825/pattern-coil-lines.svg')"></div><p class="cap" style="margin-top:6px">Coil lines</p></div>
+          <div><div class="pattern-tile" style="background-image:url('interactive_20260825/pattern-tool-scatter.svg')"></div><p class="cap" style="margin-top:6px">Tool scatter</p></div>
+          <div><div class="pattern-tile" style="background-image:url('interactive_20260825/pattern-thumbprint.svg')"></div><p class="cap" style="margin-top:6px">Thumbprint</p></div>
+          <div><div class="pattern-tile" style="background-image:url('interactive_20260825/pattern-hatch-zone.svg')"></div><p class="cap" style="margin-top:6px">Hatch zone</p></div>
+        </div>
+        <div class="panel panel--snug fill"><div class="sys">Quiet by contract</div><p class="body-compact">Dividers are world objects doing a rule's job. Patterns are seamless and sit at 0.10–0.20 effective presence behind content. Paired flanks (left/right tool columns) punctuate wide margins and always resolve inside the page.</p></div>
+      </div>
+    </div>
+    <figure class="asset-strip hold"><img src="interactive_20260825/scene-shelf-strip.svg" alt="Workshop shelf strip scene edge"><figcaption>Scene edge · shelf strip · top band or section break</figcaption></figure>
+    <figure class="asset-strip hold"><img src="interactive_20260825/scene-footer-shared-table.svg" alt="Shared table footer scene with hand and gripper converging on one vessel"><figcaption>Scene edge · footer shared table · the page grounds where hand and gripper meet the same vessel</figcaption></figure>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     37 · 06 UI 素材：容器边框
+     ============================================================ -->
+<section class="page" id="ui-art-container-borders">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Container Borders</span>
+    <span class="note">Every world frames media in its own material; Meikku's is clay</span>
+  </div>
+  <div class="page-body body--tight">
+    <div class="asset-grid fill" style="--ac:4">
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-clay-pressed.svg" alt="Pressed clay media frame"><span>Pressed clay</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-coil.svg" alt="Coiled clay rope frame"><span>Coil rope</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-zine-torn.svg" alt="Torn zine paper frame"><span>Torn zine paper</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-pigment-stroke.svg" alt="Oil pigment brush stroke frame"><span>Pigment stroke</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-token-teeth.svg" alt="Token toothed edge frame"><span>Token teeth</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-ray-notched.svg" alt="High-five ray notched frame"><span>Ray corners</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-workbench.svg" alt="Workbench dot grid frame"><span>Workbench</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/frame-tape-full.svg" alt="Tape cornered frame"><span>Taped corners</span></div>
+    </div>
+    <div class="grid-3 hold">
+      <div class="panel panel--snug"><div class="sys">Where a world border belongs</div><p class="body-compact">Media windows, photo plates, gallery cards, and quotes may take any world border. The window stays rectangular inside; only the frame material changes.</p></div>
+      <div class="panel panel--snug panel--clay"><div class="sys">Consumption</div><p class="body-compact">480 × 360 masters with a uniform ~72-unit band; use whole as an SVG plate or slice with CSS <b>border-image</b>. The pigment-stroke frame declares its color locally.</p></div>
+      <div class="panel panel--snug panel--redline"><div class="sys">Rectangles keep their jobs</div><p class="body-compact">Controls, claim labels, evidence windows, and data panels stay hard rectangles. A Demo evidence crop never takes a decorative border beyond one lightweight frame.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     38 · 06 UI 素材：控件
+     ============================================================ -->
+<section class="page" id="ui-art-controls">
+  <div class="page-head">
+    <span class="ch">06</span><span class="name">UI Art — Controls</span>
+    <span class="note">The interface hand-kit: state is geometry, never color alone</span>
+  </div>
+  <div class="page-body body--tight">
+    <div class="asset-grid fill" style="--ac:5">
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-toggle-on.svg" alt="Toggle on"><span>Toggle · on</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-toggle-off.svg" alt="Toggle off"><span>Toggle · off</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-checkbox-on.svg" alt="Checkbox checked"><span>Checkbox · on</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-checkbox-off.svg" alt="Checkbox empty"><span>Checkbox · off</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-radio-on.svg" alt="Radio selected"><span>Radio · on</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-radio-off.svg" alt="Radio empty"><span>Radio · off</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-slider.svg" alt="Slider"><span>Slider</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-stepper.svg" alt="Stepper"><span>Stepper</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-tab-strip.svg" alt="Tab strip"><span>Tabs</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-input-field.svg" alt="Input field"><span>Input</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-dropdown.svg" alt="Dropdown"><span>Dropdown</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-tooltip.svg" alt="Tooltip frame"><span>Tooltip</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-toast.svg" alt="Toast frame"><span>Toast</span></div>
+      <div class="asset-cell asset-cell--paper"><img src="interactive_20260825/control-pagination.svg" alt="Pagination dots"><span>Pagination</span></div>
+    </div>
+    <div class="grid-3 hold">
+      <div class="panel panel--snug"><div class="sys">State is geometry</div><p class="body-compact">On fills solid, off stays outlined; the active tab rises and closes the baseline; pressed closes the block shadow; disabled goes dashed. Color may reinforce, never carry, a state.</p></div>
+      <div class="panel panel--snug panel--clay"><div class="sys">Size law</div><p class="body-compact">Primary controls at least 44 px tall, secondary rows 40 px. Labels are Bungee 16–20 px in the consuming layout; these plates ship blank.</p></div>
+      <div class="panel panel--snug"><div class="sys">Runtime rule</div><p class="body-compact">Real interfaces implement these as native HTML or Unity controls styled to match — the SVGs are the drawing law and mockup kit, not a widget library.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     39 · 07 产品系统：入门套装
+     ============================================================ -->
+<section class="page" id="product-starter-kit">
+  <div class="page-head">
+    <span class="ch">07</span><span class="name">Product System — Starter Kit</span>
+    <span class="note">A complete setup for making together</span>
+  </div>
+  <div class="page-body body--rows">
+
+    <div class="split split--flat">
+      <figure class="figure figure--fit">
+        <div class="plate plate--dark">
+          <img src="interactive_20260825/03_starter_kit_master.png" alt="Top-down Meikku starter kit with the exact SO-101 entering the shared field from outside, plus tool tips, clay refills, workspace mat, care cloth, brush, cards, kraft box, and tray.">
+        </div>
+        <figcaption>01 · Co-making starter kit · complete tabletop setup</figcaption>
+      </figure>
+
+      <div class="stack">
+        <div>
+          <div class="sys">Product principle</div>
+          <div class="h-callout" style="margin-top:10px">A BRAND WORLD<br>BUILT FROM USE,<br>NOT MERCH.</div>
+        </div>
+        <div class="panel panel--clay">
+          <div class="h-mini">WHAT SHIPS TOGETHER</div>
+          <ul class="product-list">
+            <li><b>Make:</b> compact robot, grey clay refills, four changeable tool tips.</li>
+            <li><b>Share attention:</b> fold-out mat, shape landmarks, quick-start cards.</li>
+            <li><b>Reset:</b> washable cloth, cleaning brush, molded-pulp organizer.</li>
+            <li><b>Carry:</b> one recyclable kraft box that becomes session storage.</li>
+          </ul>
+        </div>
+        <p class="body">
+          Every object must reduce friction in a real co-making session. If an item does not help
+          someone prepare, point, try, clean, store, or remember, it does not belong in the system.
+        </p>
+      </div>
+    </div>
+
+    <div class="product-sequence">
+      <div><b>01 · PREPARE</b><span>Unfold the shared field and organize material.</span></div>
+      <div><b>02 · MEET</b><span>Place person, robot, and clay around one surface.</span></div>
+      <div><b>03 · TRY</b><span>Swap tools and test one bounded material move.</span></div>
+      <div><b>04 · RESET</b><span>Clean, repack, and keep the session trace.</span></div>
+    </div>
+
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     40 · 07 SO-101 姿态语法
+     ============================================================ -->
+<section class="page" id="pose-library">
+  <div class="page-head">
+    <span class="ch">07</span><span class="name">SO-101 — Pose Grammar</span>
+    <span class="note">Identity stays fixed; the active gripper enters the shared field</span>
+  </div>
+  <div class="page-body">
+    <div class="pose-strip" aria-label="Four selected Blender pose controls for the SO-101">
+      <figure class="figure">
+        <div class="plate r-1x1"><img src="interactive_20260825/01_robot_right_reaches_left.png" alt="SO-101 reaching inward from the right side toward a shared center."></div>
+        <figcaption>01 · inward reach</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="plate r-1x1"><img src="interactive_20260825/03_center_down_press.png" alt="SO-101 centered above the shared field with the gripper pointing down."></div>
+        <figcaption>03 · center press</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="plate r-1x1"><img src="interactive_20260825/04_forward_offer.png" alt="SO-101 extending the gripper forward as an offer gesture."></div>
+        <figcaption>04 · forward offer</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="plate r-1x1"><img src="interactive_20260825/05_high_five_upright.png" alt="SO-101 holding the gripper upright for a high-five gesture."></div>
+        <figcaption>05 · high-five</figcaption>
+      </figure>
+    </div>
+    <div class="grid-3 fill">
+      <div class="panel"><div class="h-mini">IDENTITY INPUT</div><p class="body">The verified photograph owns white printed links, black servos, exposed cabling, green controller board, fasteners, base and gripper morphology.</p></div>
+      <div class="panel panel--clay"><div class="h-mini">POSE INPUT</div><p class="body">Blender owns joint arrangement and view only. The complete eight-pose library and manifest live beside these four selected controls.</p></div>
+      <div class="panel panel--slate"><div class="h-mini">RELATION GATE</div><p class="body">Base outside, shared object at center, active gripper closest. Reject any frame where the wrist crosses the object or the fingers open away from it.</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     41 · 07 产品系统：工作台工具
+     ============================================================ -->
+<section class="page" id="product-workspace-tools">
+  <div class="page-head">
+    <span class="ch">07</span><span class="name">Product System — Workspace Tools</span>
+    <span class="note">Point, offer, try, and reset</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/05_attention_tools_master.png" alt="Meikku workspace tools with the exact SO-101 entering from the upper-right perimeter and directing its open gripper into the common tool field.">
+      </div>
+      <figcaption>02 · Attention and shaping tools · shared reference before motion</figcaption>
+    </figure>
+    <div class="notes">
+      <div class="panel fill">
+        <div class="h-mini">POINT TOGETHER</div>
+        <p class="body"><b>Landmark stamps</b> and <b>weighted region pins</b> give “here” and “that side” a shared physical referent before anyone acts.</p>
+      </div>
+      <div class="panel panel--clay fill">
+        <div class="h-mini">OFFER A MOVE</div>
+        <p class="body"><b>Gesture cards</b> and <b>challenge prompts</b> turn vague ideas into small, rejectable invitations rather than commands.</p>
+      </div>
+      <div class="panel panel--slate fill">
+        <div class="h-mini">TRY &amp; RESET</div>
+        <p class="body"><b>Tool tips</b>, <b>test tiles</b>, and a washable organizer support bounded trials, comparison, cleanup, and the next turn.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     42 · 07 产品系统：记忆与材料档案
+     ============================================================ -->
+<section class="page" id="product-memory-material">
+  <div class="page-head">
+    <span class="ch">07</span><span class="name">Product System — Memory &amp; Material</span>
+    <span class="note">Keep the shared history tangible and correctable</span>
+  </div>
+  <div class="page-body body--split split--wide">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/06_session_archive_master.png" alt="Human hand placing a clay sample into a session memory box beside a process journal, specimen trays, protective sleeves, session cards and care kit; the robot and logo are intentionally omitted when neither has an honest role or physical carrier.">
+      </div>
+      <figcaption>03 · Session memory archive · the clay keeps the source</figcaption>
+    </figure>
+    <div class="notes">
+      <div>
+        <div class="sys">Relationship continuity</div>
+        <div class="h-callout" style="margin-top:10px">KEEP WHAT<br>HAPPENED,<br>NOT A MYTH.</div>
+      </div>
+      <div class="panel panel--clay">
+        <div class="h-mini">FIVE PRACTICAL OBJECTS</div>
+        <ul class="product-list">
+          <li><b>Session memory box</b> separates episodes without hiding their order.</li>
+          <li><b>Process journal</b> holds intentions, revisions, and material observations.</li>
+          <li><b>Specimen tray + sleeves</b> preserve small clay outcomes and surface tests.</li>
+          <li><b>Session receipt</b> links a physical sample back to its source and date.</li>
+          <li><b>Care kit</b> makes closing and returning part of the relationship ritual.</li>
+        </ul>
+      </div>
+      <div class="panel panel--redline">
+        <p class="body"><b>Never visualize memory as magic.</b> The brand shows a box, sample, note, source, and correction path before it shows a glowing abstraction.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     43 · 07 产品系统：公共工作坊
+     ============================================================ -->
+<section class="page" id="product-public-workshop">
+  <div class="page-head">
+    <span class="ch">07</span><span class="name">Product System — Public Workshop</span>
+    <span class="note">A station that can welcome, make, archive, and reset</span>
+  </div>
+  <div class="page-body body--split split--near">
+    <figure class="figure figure--fit">
+      <div class="plate plate--dark">
+        <img src="interactive_20260825/14_multi_participant_workshop_master.png" alt="Three participants and the exact SO-101 work on different clay experiments around one modular shared center.">
+      </div>
+      <figcaption>04 · Public workshop station · person, robot, and clay remain the first read</figcaption>
+    </figure>
+    <div class="notes">
+      <div class="panel panel--slate fill">
+        <div class="h-mini">WELCOME</div>
+        <p class="body">One standing sign explains the invitation; cards and supplies sit within reach without turning the space into retail display.</p>
+      </div>
+      <div class="panel panel--clay fill">
+        <div class="h-mini">MAKE TOGETHER</div>
+        <p class="body">The person–clay–robot triangle dominates. Tools are integrated into the table so the shared material never becomes secondary.</p>
+      </div>
+      <div class="panel fill">
+        <div class="h-mini">ARCHIVE &amp; RESET</div>
+        <p class="body">Refill drawers, specimen trays, memory storage, and washable surfaces let facilitators close one session honestly and prepare the next.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     44 · 08 禁用清单 · 表层
+     ============================================================ -->
+<section class="page page--dark" id="anti-surface">
+  <div class="page-head">
+    <span class="ch">08</span><span class="name">Anti-Patterns — Surface</span>
+    <span class="note">Remove visual habits that weaken the identity</span>
+  </div>
+  <div class="page-body body--loose">
+    <div class="h-statement">
+      IF ANY LINE BELOW IS TRUE,<br>
+      <span style="display:inline-block;background:var(--vermilion);color:var(--paper);padding:4px 16px 8px;margin-top:8px">IT IS NOT MEIKKU.</span>
+    </div>
+    <div class="check-grid">
+      <div class="check-list">
+        <div class="h-mini">SURFACE</div>
+        <p class="body">✕ &nbsp;Glassmorphism or blurred shadows<br>✕ &nbsp;Rounded main containers<br>✕ &nbsp;Gradient hero backgrounds<br>✕ &nbsp;Nested decorative cards<br>✕ &nbsp;Neon or fluorescent color<br>✕ &nbsp;Generic Apple-style calm<br>✕ &nbsp;Decorative UI color with no job</p>
+      </div>
+      <div class="check-list" style="border-color:var(--vermilion)">
+        <div class="h-mini">SYSTEM</div>
+        <p class="body">✕ &nbsp;A third font family<br>✕ &nbsp;Thin serif typography<br>✕ &nbsp;Pure black instead of slate<br>✕ &nbsp;An extra pigment or neutral step<br>✕ &nbsp;All pigments shouting at once<br>✕ &nbsp;Color as the only state carrier<br>✕ &nbsp;A floating status label inside imagery</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     45 · 08 禁用清单 · 叙事与诚实
+     ============================================================ -->
+<section class="page page--dark" id="anti-story">
+  <div class="page-head">
+    <span class="ch">08</span><span class="name">Anti-Patterns — Story &amp; Honesty</span>
+    <span class="note">The visual world must stay relational and evidence-aware</span>
+  </div>
+  <div class="page-body body--loose">
+    <div class="check-grid">
+      <div class="check-list">
+        <div class="h-mini">STORY</div>
+        <p class="body">✕ &nbsp;Deficit, loneliness, or "replacement" framing<br>✕ &nbsp;An autonomous robot hero<br>✕ &nbsp;The person cropped from making<br>✕ &nbsp;The AI shown only waiting or reacting<br>✕ &nbsp;Approve/reject or "show before you move" gates<br>✕ &nbsp;One inevitable goal form<br>✕ &nbsp;A platform diagram as the opening<br>✕ &nbsp;Toy language as the main definition<br>✕ &nbsp;Generic AI or robot sci-fi imagery</p>
+      </div>
+      <div class="check-list" style="border-color:var(--vermilion)">
+        <div class="h-mini">HONESTY</div>
+        <p class="body">✕ &nbsp;Capability with no evidence status<br>✕ &nbsp;LIVE and SIMULATED blurred together<br>✕ &nbsp;Conversation shown beyond proof<br>✕ &nbsp;Memory rendered as magic glow<br>✕ &nbsp;A dashboard larger than the action<br>✕ &nbsp;Fake precision in any readout</p>
+      </div>
+    </div>
+    <div class="panel panel--blue hold" style="border-color:var(--paper)">
+      <div class="row row--center" style="gap:28px">
+        <div class="h-mini hold" style="flex-basis:180px">SHIP CHECK</div>
+        <p class="body-lg fill" style="margin-top:0">Two fonts · paper + slate foundation · shared pigments · tertiary neutrals · local legends · 0 radius · hard borders · workspace dominant · the person stays in frame · plus one, never a remedy.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     46 · 08 素材与待办
+     ============================================================ -->
+<section class="page" id="assets-open-items">
+  <div class="page-head">
+    <span class="ch">08</span><span class="name">Assets &amp; Open Items</span>
+    <span class="note">Where files live and what is not finished</span>
+  </div>
+  <div class="page-body body--split split--data">
+    <div class="panel">
+      <div class="h-mini">WHERE THINGS LIVE</div>
+      <table>
+        <thead><tr><th>Asset</th><th>Location</th></tr></thead>
+        <tbody>
+          <tr><td>Upstream visual spec</td><td>MEIKKU_DESIGN_DNA.md</td></tr>
+          <tr><td>Media / asset index</td><td>MEDIA_AGENT_GUIDE.md</td></tr>
+          <tr><td>Bundled font files</td><td>ui/assets/storyboard/fonts/</td></tr>
+          <tr><td>Deck evidence frames</td><td>Artifacts/DeckEvidence/d0_deck_evidence_slice/</td></tr>
+          <tr><td>Guideline image families</td><td>Images/brand_guidelines_*/</td></tr>
+          <tr><td>Public preview</td><td>cloudinjun.github.io/meikku-storyboard-preview/</td></tr>
+          <tr><td>Official logo files</td><td>ui/assets/brand/logo/</td></tr>
+          <tr><td>UI art asset pack</td><td>ui/assets/brand/ui_art_v1/ · manifest.json</td></tr>
+          <tr><td>World-asset layer v2</td><td>ui/assets/brand/ui_art_v2/ · manifest.json · contact sheet</td></tr>
+          <tr><td>Submitted logo source</td><td>ui/assets/human_robot_highfive_vector_files.zip</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="notes">
+      <div class="panel panel--clay fill">
+        <div class="h-mini">OPEN ITEMS</div>
+        <p class="body-lg">The high-five symbol is now the <b>official Meikku logo</b>. Production SVG and EPS files are ready; the raster PNG remains preview-only.</p>
+        <p class="body">Open production checks: one embroidery sample, one laser-cut sample, and a formal trademark / similarity review. Product, campaign, and shared-table UI imagery on pages 18–37 remains visual direction, not proof of live Demo capability.</p>
+      </div>
+      <div class="panel panel--blue">
+        <div class="h-callout">CONSISTENT,<br>NOT TEMPLATED.</div>
+        <p class="cap">Use the system as a starting point, not a reason to repeat one page forever.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     47 · 08 版本历史 · 基础
+     ============================================================ -->
+<section class="page" id="version-history-foundation">
+  <div class="page-head">
+    <span class="ch">08</span><span class="name">Version History — Foundation</span>
+    <span class="note">Foundation decisions and the first system split</span>
+  </div>
+  <div class="page-body">
+    <div class="panel">
+      <div class="h-mini">1.0 – 2.2 · Foundation &amp; first system</div>
+      <table class="version-table">
+        <thead><tr><th>Ver</th><th>Date</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><b>1.0</b></td><td>2026-08-06</td><td>Published the first 16-page edition from the active Design DNA.</td></tr>
+          <tr><td><b>1.1</b></td><td>2026-08-07</td><td>Replaced neon aliases with inherited pigment color.</td></tr>
+          <tr><td><b>1.2</b></td><td>2026-08-07</td><td>Promoted shared pigments; demoted neutrals; removed fixed actor colors.</td></tr>
+          <tr><td><b>1.3</b></td><td>2026-08-07</td><td>Established one coherent hero and application image family.</td></tr>
+          <tr><td><b>1.4</b></td><td>2026-08-11</td><td>Added the practical product ecosystem; removed image-corner badges.</td></tr>
+          <tr><td><b>1.5</b></td><td>2026-08-11</td><td>Re-edited the manual around one decision per page and image-led rhythm.</td></tr>
+          <tr><td><b>1.6</b></td><td>2026-08-12</td><td>Made the human–robot high-five vector the official logo.</td></tr>
+          <tr><td><b>1.7</b></td><td>2026-08-13</td><td>Trimmed SVG canvas whitespace and aligned the cover lockup.</td></tr>
+          <tr><td><b>1.8</b></td><td>2026-08-13</td><td>Unified repeated text roles under one semantic hierarchy.</td></tr>
+          <tr><td><b>1.9</b></td><td>2026-08-13</td><td>Aligned the shared-pigment page into one row and three equal panels.</td></tr>
+          <tr><td><b>2.0</b></td><td>2026-08-13</td><td>Split digital and physical applications; preserved every 16:9 composition.</td></tr>
+          <tr><td><b>2.1</b></td><td>2026-08-13</td><td>Anchored imagery to verified SO-101, official logo, and Bungee wordmark.</td></tr>
+          <tr><td><b>2.2</b></td><td>2026-08-13</td><td>Added the reusable UI-art library and its consumption manifest.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     48 · 08 版本历史 · 当前系统
+     ============================================================ -->
+<section class="page" id="version-history-current">
+  <div class="page-head">
+    <span class="ch">08</span><span class="name">Version History — Current System</span>
+    <span class="note">Applications, assets, anchors, and layout corrections</span>
+  </div>
+  <div class="page-body">
+    <div class="panel">
+      <div class="h-mini">2.3 – 2.16 · Current system</div>
+      <table class="version-table">
+        <thead><tr><th>Ver</th><th>Date</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><b>2.3</b></td><td>2026-08-13</td><td>Made image-led pages ratio-aware and separated notes from visuals.</td></tr>
+          <tr><td><b>2.4</b></td><td>2026-08-13</td><td>Rebuilt photographic robots around the user-verified SO-101 follower.</td></tr>
+          <tr><td><b>2.5</b></td><td>2026-08-13</td><td>Separated robot identity from pose through eight Blender controls.</td></tr>
+          <tr><td><b>2.6</b></td><td>2026-08-13</td><td>Diversified scenes while preserving robot, identity, palette, and material anchors.</td></tr>
+          <tr><td><b>2.7</b></td><td>2026-08-13</td><td>Restored the selected token, dispenser, merchandise, and campaign families.</td></tr>
+          <tr><td><b>2.8</b></td><td>2026-08-13</td><td>Corrected application pages to preserve authored 16:9 and 3:2 ratios.</td></tr>
+          <tr><td><b>2.9</b></td><td>2026-08-13</td><td>Replaced the cropped desktop-wallpaper sheet with complete specimens.</td></tr>
+          <tr><td><b>2.10</b></td><td>2026-08-13</td><td>Removed nested UI-art frames and restored complete mobile specimens.</td></tr>
+          <tr><td><b>2.11</b></td><td>2026-08-13</td><td>Split version history across two readable pages with stable footer clearance.</td></tr>
+          <tr><td><b>2.12</b></td><td>2026-08-13</td><td>Rebuilt the whole manual on one layout system: removed duplicated page rules and inline sizing, tied every image plate to its real source ratio, and renumbered chapters against the contents.</td></tr>
+          <tr><td><b>2.13</b></td><td>2026-08-14</td><td>Realigned the manual to thesis v12: plus-one framing, deficit language removed, the AI written as an initiating participant, and clay named as the first scene of a travelling model.</td></tr>
+          <tr><td><b>2.14</b></td><td>2026-08-17</td><td>Added the ui_art_v2 world-asset layer — 25 world objects, conversation frames, claim stamps, banners, button plates, meters, dividers, patterns, and scene edges — from a ten-site external reference study.</td></tr>
+          <tr><td><b>2.15</b></td><td>2026-08-17</td><td>Unified all icons under one 5/3 stroke grammar and grew the set to 42; added fourteen UI control plates and eight world container borders (pressed clay, coil, torn zine, pigment stroke, token teeth, rays, workbench, tape) on two new pages.</td></tr>
+          <tr><td><b>2.16</b></td><td>2026-08-17</td><td>Removed the external reference-study page from the manual; the audit survives only in internal working notes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+
+<!-- ============================================================
+     49 · 08 审批与归属
+     ============================================================ -->
+<section class="page" id="version-approval">
+  <div class="page-head">
+    <span class="ch">08</span><span class="name">Approval &amp; Ownership</span>
+    <span class="note">The manual follows the upstream brand system</span>
+  </div>
+  <div class="page-body body--split split--lead">
+    <div class="panel">
+      <div class="h-mini">CURRENT RELEASE</div>
+      <div class="h-sec">V2.16</div>
+      <p class="body-lg">The interface chapter now ships a complete reusable world layer: objects, frames, stamps, banners, dividers, patterns, and scene edges, all drawn in one grammar and indexed by manifest. Every page still draws its structure from one shared layout system.</p>
+      <table style="margin-top:28px"><tbody>
+        <tr><td><b>Core</b></td><td>Use the extension images as a coherent future product and campaign world.</td></tr>
+        <tr><td><b>Demo</b></td><td>Only fabricated, installed, sliced, printed, or tested objects count as exhibition proof.</td></tr>
+        <tr><td><b>Next</b></td><td>Validate embroidery, laser output, token slicing/insertion, and formal logo similarity.</td></tr>
+      </tbody></table>
+    </div>
+    <div class="notes">
+      <div class="panel panel--slate fill">
+        <div class="h-mini">APPROVALS</div>
+        <p class="body-lg">Logo geometry, token, type, palette hierarchy, local-legend, or evidence-language changes begin in <b>MEIKKU_DESIGN_DNA.md</b>.</p>
+        <p class="body" style="color:var(--grid)">This manual follows the upstream system; it does not silently lead it.</p>
+      </div>
+      <div class="panel"><p class="body"><b>Project</b> Meikku<br><b>Studio</b> ATStudio Two · SCI-Arc<br><b>Contact</b> cloudinjun@gmail.com</p></div>
+    </div>
+  </div>
+  <footer class="page-foot"><i></i></footer>
+</section>
+
+<script>
+/* Fit one 1920px page to the current width, and keep fitting on resize. Scaling
+   the body rather than the pages keeps scrollHeight in step, so the document
+   still scrolls vertically through all 46 pages with the mouse wheel. */
+(function () {
+  function fit() {
+    var w = document.documentElement.clientWidth || window.innerWidth || 1920;
+    document.body.style.zoom = Math.min(1, w / 1920);
+  }
+  fit();
+  window.addEventListener('resize', fit);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="An interactive modular information desk. Divide the plan, arrange independently movable modules, and inspect dimensions in 3D.">
+  <title>Information Desk — Deying Chen</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#settings">Skip to controls</a>
+  <header class="project-header">
+    <div>
+      <p class="eyebrow">Deying Chen · Computational design · 2026</p>
+      <h1>Information Desk</h1>
+      <p class="intro">Arrange counters, storage and shelves within one rectangular footprint.</p>
+    </div>
+    <a class="text-link" href="#about">About the system <span aria-hidden="true">↘</span></a>
+  </header>
+
+  <main class="workspace">
+    <section class="viewer-column" aria-label="Interactive model">
+      <div class="viewport-shell">
+        <div class="view-toolbar">
+          <div class="view-buttons" role="group" aria-label="Camera view">
+            <button type="button" data-view="iso" aria-pressed="true">3D</button>
+            <button type="button" data-view="front" aria-pressed="false">Front</button>
+            <button type="button" data-view="side" aria-pressed="false">Side</button>
+            <button type="button" data-view="plan" aria-pressed="false">Top</button>
+          </div>
+          <div class="view-options">
+            <label class="check-label"><input id="show-dimensions" type="checkbox" checked> Dimensions</label>
+            <label class="check-label"><input id="frame-only" type="checkbox"> Frame only</label>
+          </div>
+        </div>
+        <div class="separation-control">
+          <label class="range-label" for="separation">Module separation <output id="separation-value">Assembled</output></label>
+          <input id="separation" type="range" min="1" max="2.2" step="0.01" value="1">
+          <p id="separation-help" class="help">Slide to separate module positions. Part sizes stay the same.</p>
+        </div>
+        <div id="viewport" aria-label="Desk model. Drag to orbit, scroll to zoom." tabindex="0">
+          <p id="viewer-message" role="status">Loading model…</p>
+        </div>
+        <div class="viewport-footer">
+          <span id="model-summary" class="mono">3 × 3 grid</span>
+          <span class="interaction-hint">Drag to orbit · Scroll to zoom</span>
+        </div>
+      </div>
+      <div class="action-row">
+        <p id="dimensions" class="mono">3048 W × 1829 D × 2800 H mm</p>
+        <div>
+          <button id="export-image" type="button" disabled>Save image</button>
+          <button id="save-settings" type="button">Save settings</button>
+          <button id="reset" type="button">Reset</button>
+        </div>
+      </div>
+      <p id="feedback" role="status" class="feedback" aria-live="polite"></p>
+    </section>
+
+    <aside id="settings" class="settings" aria-label="Desk controls">
+      <div class="control-section">
+        <label for="preset">Start with an arrangement</label>
+        <select id="preset">
+          <option value="A01">A01 · Equal island</option>
+          <option value="A02">A02 · Unequal L</option>
+          <option value="A03">A03 · Wide + narrow</option>
+          <option value="A04">A04 · Rear opening</option>
+          <option value="A05" selected>A05 · Two rows</option>
+          <option value="A06">A06 · Front opening</option>
+          <option value="A07">A07 · Offset rows</option>
+          <option value="A08">A08 · Wide centre U</option>
+          <option value="custom" disabled>Custom arrangement</option>
+        </select>
+        <div class="control-pair">
+          <div><label for="nx">Columns</label><select id="nx"><option>2</option><option selected>3</option></select></div>
+          <div><label for="ny">Rows</label><select id="ny"><option>2</option><option selected>3</option></select></div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <div class="section-label"><h2>Divide the plan</h2><span class="mono">Front ↓</span></div>
+        <div id="plan-wrap">
+          <svg id="plan" viewBox="0 0 320 210" role="group" aria-label="Plan: select a module or drag a division handle"></svg>
+        </div>
+        <p class="help">Drag A or B to divide. Select a cell to change its use.</p>
+        <div class="control-pair">
+          <div><label for="ratioX">Width split</label><select id="ratioX"><option value="0">Free</option><option value="1">1 : 1</option><option value="2">1 : 2</option><option value="3">2 : 1</option></select></div>
+          <div><label for="ratioY">Depth split</label><select id="ratioY"><option value="0">Free</option><option value="1">1 : 1</option><option value="2">1 : 2</option><option value="3">2 : 1</option></select></div>
+        </div>
+        <details>
+          <summary>Division positions</summary>
+          <div class="control-pair">
+            <label>A · Width % <input id="ax" type="number" min="0" max="100" step="0.1"></label>
+            <label>A · Depth % <input id="ay" type="number" min="0" max="100" step="0.1"></label>
+            <label>B · Width % <input id="bx" type="number" min="0" max="100" step="0.1"></label>
+            <label>B · Depth % <input id="by" type="number" min="0" max="100" step="0.1"></label>
+          </div>
+          <p class="help">Two bays use A. Three bays use A + B. Minimum spans: 450 mm wide, 420 mm deep.</p>
+        </details>
+      </div>
+
+      <div class="control-section module-settings">
+        <div class="section-label"><h2 id="module-title">Module M11</h2><span id="module-size" class="mono"></span></div>
+        <label for="module-type">Use</label>
+        <select id="module-type">
+          <option value="0">Empty / access</option><option value="1">Closed cabinet</option>
+          <option value="2" selected>Low display</option><option value="3">Tall shelf</option>
+        </select>
+        <div id="shelf-settings">
+          <label class="range-label" for="shelf-count">Shelves <output id="shelf-count-value">1</output></label>
+          <input id="shelf-count" type="range" min="0" max="6" step="1" value="1">
+          <div class="control-pair">
+            <label>First shelf · mm <input id="first-shelf" type="number" min="250" max="2450" step="10"></label>
+            <label>Last shelf · mm <input id="last-shelf" type="number" min="250" max="2550" step="10"></label>
+          </div>
+          <p id="shelf-levels" class="help"></p>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <label class="range-label" for="counter">Counter height <output id="counter-value">915 mm</output></label>
+        <input id="counter" type="range" min="760" max="1100" step="5" value="915">
+        <details>
+          <summary>Overall dimensions</summary>
+          <div class="control-pair">
+            <label>Width · mm <input id="width" type="number" min="2000" max="4000" step="10" value="3048"></label>
+            <label>Depth · mm <input id="depth" type="number" min="1450" max="2600" step="10" value="1828.8"></label>
+            <label>Height · mm <input id="height" type="number" min="2200" max="3200" step="10" value="2800"></label>
+            <label>Frame · mm <input id="section" type="number" min="30" max="60" step="5" value="40"></label>
+            <label>Shelf depth · mm <input id="shelfDepth" type="number" min="150" max="450" step="10" value="300"></label>
+          </div>
+        </details>
+      </div>
+    </aside>
+  </main>
+
+  <section id="about" class="project-note">
+    <div><p class="eyebrow">The design question</p><h2>Independent modules, many arrangements.</h2></div>
+    <div>
+      <p>I designed the desk around adjustable divisions and interchangeable uses. Each module has its own frame and four casters. Cabinets, counters, shelves and signage move together, with a small joint between neighboring units.</p>
+      <p>The browser prototype develops an earlier native Grasshopper study into independently movable units. Dimensions follow the displayed arrangement; “Spread” measures the separated view. The downloadable Grasshopper file documents the earlier shared-frame study. Implementation and verification were AI-assisted.</p>
+      <p class="help">A digital design study. Connections, locking hardware, loads and physical assembly still need development.</p>
+      <div class="source-links">
+        <a href="downloads/Information_Desk.gh" download>Earlier Grasshopper study ↗</a>
+        <a href="downloads/Information_Desk_Source.zip" download>Source package ↗</a>
+        <a href="assets/component-source.json">Caster source ↗</a>
+      </div>
+    </div>
+  </section>
+  <footer class="page-footer"><span>Information Desk</span><span>Design prototype · 2026</span></footer>
+  <noscript><p class="noscript-note">Enable JavaScript to use the configurator. The Grasshopper source is available in the project links.</p></noscript>
+</body>
+</html>
