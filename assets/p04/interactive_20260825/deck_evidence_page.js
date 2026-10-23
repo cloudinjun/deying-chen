@@ -507,7 +507,7 @@
 
   function updatePlate(beat) {
     // 实时相机优先。连探测都不做，省掉一次必然 404 的 plates/ 请求。
-    if (liveCam.active) return;
+    if (PLATE_SOURCE === "frozen" || liveCam.active) return;
     if (platesAvailable === false) return;
     if (platesAvailable === true) { showPlate(plateSrcFor(beat)); return; }
     if (platesAvailable === null) {

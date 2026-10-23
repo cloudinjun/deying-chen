@@ -16,7 +16,7 @@
 }
 @font-face {
   font-family: "Space Grotesk";
-  src: url("../../../../../ui/assets/storyboard/fonts/SpaceGrotesk-wght.ttf") format("truetype");
+  src: url("SpaceGrotesk-wght.ttf") format("truetype");
   font-weight: 300 700;
   font-display: swap;
 }
