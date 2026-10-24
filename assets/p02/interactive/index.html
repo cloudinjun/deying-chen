@@ -53,6 +53,7 @@
   .actions .btn { flex:1; }
   .kv { display:flex; justify-content:space-between; gap:12px; min-height:26px; align-items:baseline; color:var(--muted); }
   .kv b { color:var(--text); font-weight:500; text-align:right; }
+  .kv[hidden] { display:none; }   /* .kv 的 flex 会盖过 hidden 属性，显式关掉 */
   details { margin-top:6px; }
   summary { font-size:10px; color:var(--muted); cursor:pointer; letter-spacing:.06em; text-transform:uppercase; }
   #seal-detail { color:var(--muted); font-size:10px; line-height:1.5; white-space:pre-line; padding-top:6px; }
@@ -75,9 +76,9 @@
   body.loading #views, body.loading #readout { opacity:.35; }
   #toast { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); background:#111; color:#fff; font-size:11px; padding:6px 12px; border-radius:2px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.on { opacity:1; }
-  body.demo #hint, body.demo #sig, body.demo #views, body.demo #toast { display:none; }
+  body.demo #sig, body.demo #views, body.demo #toast { display:none; }
   /* 缩略图模式（作品集页 ?thumb=1）：只留三维视图，面板与控件全部隐藏 */
-  body.thumb #panel, body.thumb #hint, body.thumb #views, body.thumb #readout, body.thumb #toast { display:none; }
+  body.thumb #panel, body.thumb #views, body.thumb #readout, body.thumb #toast { display:none; }
   body.thumb #app { grid-template-columns:1fr; grid-template-rows:1fr; }
   @media (max-width:760px) {
     #app { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
@@ -101,19 +102,17 @@
   <aside id="panel">
     <header>
       <h1>PDT GOGGLES</h1>
-      <span class="badge">LIVE</span>
     </header>
 
     <div class="group open" id="g-head">
-      <button>Head</button>
       <div class="body">
         <div class="row"><span class="lbl">PDT map</span>
           <select id="sel-map" class="btn">
             <option value="female" selected>Female mean</option>
-            <option value="mean">All-participant mean</option>
+            <option value="mean">All mean</option>
             <option value="male">Male mean</option>
-            <option value="p20">Participant 20 · normalised</option>
-            <option value="p15">Participant 15 · normalised</option>
+            <option value="p20">Participant 20</option>
+            <option value="p15">Participant 15</option>
           </select></div>
         <div class="row"><label><input type="checkbox" id="chk-headsolid" checked> Head</label><span class="swatch" style="background:#e3e6ea"></span></div>
         <div class="row"><label><input type="checkbox" id="chk-pdt"> Pressure map</label><span class="swatch" style="background:#b40426"></span></div>
@@ -122,7 +121,6 @@
     </div>
 
     <div class="group open" id="g-variant">
-      <button>Structure</button>
       <div class="body">
         <div class="row"><span class="lbl">Back support</span>
           <select id="sel-pos" class="btn">
@@ -132,29 +130,28 @@
           </select></div>
         <div class="row"><span class="lbl">Density</span>
           <select id="sel-den" class="btn">
-            <option value="sparse">sparse · 3</option>
-            <option value="mid" selected>mid · 6</option>
-            <option value="dense">dense · 9</option>
+            <option value="sparse">sparse</option>
+            <option value="mid" selected>mid</option>
+            <option value="dense">dense</option>
           </select></div>
         <div class="actions"><button class="btn" id="btn-grid">All 9</button><button class="btn" id="btn-sheet">Sheet</button></div>
       </div>
     </div>
 
     <div class="group open" id="g-parts">
-      <button>Parts</button>
       <div class="body">
         <div class="row"><label><input type="checkbox" id="chk-frame" checked> Frame</label><button class="btn link" id="btn-export">STL</button></div>
-        <div class="row"><span class="lbl" style="padding-left:21px">Finish</span>
+        <div class="row"><span></span>
           <select id="finish" class="btn">
             <option value="matte">matte black</option>
             <option value="soft">soft grey</option>
             <option value="metal">bronze</option>
           </select></div>
         <div class="row"><label><input type="checkbox" id="chk-lens" checked> Lens</label><button class="btn link" id="btn-export-lens">STL</button></div>
-        <div class="row"><span class="lbl" style="padding-left:21px">Tint</span>
+        <div class="row"><span></span>
           <select id="tint" class="btn">
             <option value="smoke">smoke</option>
-            <option value="mirror">chrome mirror</option>
+            <option value="mirror">mirror</option>
             <option value="clear">clear</option>
           </select></div>
         <div class="row"><label><input type="checkbox" id="chk-seal"> Seal ring</label><span class="swatch" style="background:#3a3a3a"></span></div>
@@ -164,21 +161,20 @@
     </div>
 
     <div class="group open" id="g-specs">
-      <button>Specs</button>
       <div class="body" id="specs">
-        <div class="kv"><span>Overall</span><b id="sp-overall">—</b></div>
         <div class="kv"><span>Lens</span><b id="sp-lens">—</b></div>
-        <div class="kv"><span>Lens blank</span><b id="sp-blank">cylindrical · base 6</b></div>
-        <div class="kv"><span>Base curve</span><b id="sp-base">—</b></div>
-        <div class="kv"><span>Mass · TPU 50% infill</span><b id="sp-mass">—</b></div>
-        <div class="kv"><span>Seal</span><b id="sp-seal">—</b></div>
-        <div class="kv"><span>Lens edge</span><b id="sp-edge">—</b></div>
+        <div class="kv"><span>Mass</span><b id="sp-mass">—</b></div>
+        <div class="kv"><span>Seal check</span><b id="sp-seal">—</b></div>
+        <div class="kv" hidden><span>Overall</span><b id="sp-overall">—</b></div>
+        <div class="kv" hidden><span>Lens blank</span><b id="sp-blank">cylindrical · base 6</b></div>
+        <div class="kv" hidden><span>Base curve</span><b id="sp-base">—</b></div>
+        <div class="kv" hidden><span>Lens edge</span><b id="sp-edge">—</b></div>
         <details><summary>report</summary><div id="seal-detail"></div></details>
         <span id="sp-faces" hidden></span>
       </div>
     </div>
 
-    <div id="status">loading…</div>
+    <div id="status" hidden>loading…</div>
     <div id="footer">
       <button class="btn link" id="btn-reset" title="R">Reset</button>
       <button class="btn link" id="btn-save" title="Save the current view as PNG">Save image</button>
@@ -188,7 +184,7 @@
   </aside>
 
   <main id="stage">
-    <div id="readout">OVERALL SIZE <b id="ro-w">—</b> W · <b id="ro-h">—</b> H · <b id="ro-d">—</b> D mm</div>
+    <div id="readout"><b id="ro-w">—</b> × <b id="ro-h">—</b> × <b id="ro-d">—</b> mm</div>
     <div id="views">
       <button data-view="iso" class="on">Iso</button>
       <button data-view="front">Front</button>
@@ -196,7 +192,6 @@
       <button data-view="side">Side</button>
     </div>
     <div id="progress"></div>
-    <div id="hint">drag · scroll · keys 1–4 views · R reset</div>
     <div id="sig">DEYING CHEN</div>
     <div id="toast"></div>
     <div id="cursor"><div class="ring"></div><svg width="18" height="26" viewBox="0 0 18 26"><path d="M1.5 1.5 L1.5 20.5 L6.2 16.2 L9.6 24 L12.6 22.7 L9.3 15 L15.8 15 Z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
@@ -463,9 +458,9 @@ function buildOverlay(entry) {
 
 // ---------- 读数 ----------
 const size = specs.size;
-document.getElementById("ro-w").textContent = size[0].toFixed(1);
-document.getElementById("ro-h").textContent = size[2].toFixed(1);
-document.getElementById("ro-d").textContent = size[1].toFixed(1);
+document.getElementById("ro-w").textContent = size[0].toFixed(0);
+document.getElementById("ro-h").textContent = size[2].toFixed(0);
+document.getElementById("ro-d").textContent = size[1].toFixed(0);
 document.getElementById("sp-overall").textContent = `${size[0].toFixed(0)} × ${size[2].toFixed(0)} × ${size[1].toFixed(0)} mm`;
 document.getElementById("sp-lens").textContent = `${specs.lens_w} × ${specs.lens_h} mm`;
 document.getElementById("sp-faces").textContent = specs.frame_faces.toLocaleString();
@@ -589,13 +584,13 @@ function applySpecs(entry) {
   const mn = [Math.min(entry.frame_bounds.min[0], specs.overall.min[0]), Math.min(entry.frame_bounds.min[1], specs.overall.min[1]), Math.min(entry.frame_bounds.min[2], specs.overall.min[2])];
   const mx = [Math.max(entry.frame_bounds.max[0], specs.overall.max[0]), Math.max(entry.frame_bounds.max[1], specs.overall.max[1]), Math.max(entry.frame_bounds.max[2], specs.overall.max[2])];
   const sz = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]];
-  document.getElementById("ro-w").textContent = sz[0].toFixed(1);
-  document.getElementById("ro-h").textContent = sz[2].toFixed(1);
-  document.getElementById("ro-d").textContent = sz[1].toFixed(1);
+  document.getElementById("ro-w").textContent = sz[0].toFixed(0);
+  document.getElementById("ro-h").textContent = sz[2].toFixed(0);
+  document.getElementById("ro-d").textContent = sz[1].toFixed(0);
   document.getElementById("sp-overall").textContent = `${sz[0].toFixed(0)} × ${sz[2].toFixed(0)} × ${sz[1].toFixed(0)} mm`;
   document.getElementById("sp-faces").textContent = entry.faces.toLocaleString();
   document.getElementById("sp-mass").textContent = `${entry.est_mass_g} g`;
-  if (entry.lens_width_mm) document.getElementById("sp-lens").textContent = `${entry.lens_width_mm} × ${entry.lens_height_mm} × 2 mm`;
+  if (entry.lens_width_mm) document.getElementById("sp-lens").textContent = `${entry.lens_width_mm} × ${entry.lens_height_mm} × 2 mm${entry.lens_base_curve ? " · base " + entry.lens_base_curve : ""}`;
   if (entry.lens_base_curve) document.getElementById("sp-base").textContent = `${entry.lens_base_curve} · R ${entry.lens_radius_mm}`;
   if (entry.lens_mount) document.getElementById("sp-blank").textContent = `cylindrical · base 6 · ${entry.lens_mount}`;
 }
@@ -789,7 +784,7 @@ document.getElementById("btn-save").addEventListener("click", () => {
   a.click();
 });
 document.getElementById("btn-copy").addEventListener("click", async () => {
-  const text = [...document.querySelectorAll("#specs .kv")].map((r) => r.children[0].textContent + ": " + r.children[1].textContent).join("\n");
+  const text = [...document.querySelectorAll("#specs .kv:not([hidden])")].map((r) => r.children[0].textContent + ": " + r.children[1].textContent).join("\n");
   try { await navigator.clipboard.writeText(text); toast("specs copied"); } catch (e) { status.textContent = text; }
 });
 document.getElementById("btn-share").addEventListener("click", async () => {
