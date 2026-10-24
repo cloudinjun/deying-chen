@@ -236,15 +236,16 @@ window.PORTFOLIO_DATA = {
       "tools": "Grasshopper / Python / Rhino / Blender / LLM Agents",
       "body": "Custom Headgear begins with pressure-discomfort data from 28 people, which I mapped onto a head mesh and turned into wearable geometry. When the printed shell proved too enclosed to wear, I split the form. The same scanning-and-fabrication logic then became a five-level retail building connecting body data, room program, circulation, structure and facade.",
       "caption": "A pressure-mapped wearable defines the users and spaces of a five-level scanning and fabrication building.",
-      "link": "",
+      "link": "https://cloudinjun.github.io/deying-chen/assets/p02/interactive/index.html",
       "repo": "",
       "primary_track": "computational-design",
       "tracks": [
         "computational-design",
         "ai-systems"
       ],
-      "main": "assets/p02/structure_diagram.png",
+      "main": "assets/p02/interactive/index.html",
       "thumbs": [
+        "assets/p02/structure_diagram.png",
         "assets/p02/product_goggles_black_background_angle__web.webp",
         "assets/p02/product_process_steps.gif",
         "assets/p02/process_steps.gif",
@@ -255,7 +256,7 @@ window.PORTFOLIO_DATA = {
         "assets/p02/video__web.mp4",
         "assets/p02/product_goggles_computational_evidence_board__web.webp"
       ],
-      "image_count": 10
+      "image_count": 11
     },
     {
       "id": "p16",

@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDT Goggles · Configurator</title>
+<style>
+  /* 左栏：一种字号体系、一种按钮、无徽标无彩色；右侧视口白底 */
+  :root { --line:#e6e6e6; --text:#111; --muted:#8a8a8a; --ok:#1a7f37; --bad:#b42318; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:#fff; color:var(--text);
+    font-family:"Helvetica Neue", Helvetica, Arial, sans-serif; font-size:12px; line-height:1.4; font-variant-numeric:tabular-nums; }
+  #app { display:grid; grid-template-columns:272px 1fr; height:100%; }
+  #panel { border-right:1px solid var(--line); overflow-y:auto; display:flex; flex-direction:column; }
+  #panel header { padding:18px 18px 14px; display:flex; justify-content:space-between; align-items:baseline; }
+  #panel h1 { font-size:11px; font-weight:600; letter-spacing:.14em; margin:0; }
+  #panel .badge { font-size:9px; letter-spacing:.14em; color:var(--muted); }
+  #panel .badge::before { content:""; display:inline-block; width:5px; height:5px; border-radius:50%; background:var(--ok); margin-right:6px; vertical-align:1px; }
+  .group { border-top:1px solid var(--line); padding:12px 18px 14px; }
+  .group > button { all:unset; display:block; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); padding:0 0 8px; cursor:default; }
+  .group .body { display:block; }
+  .row { display:flex; align-items:center; justify-content:space-between; min-height:28px; gap:10px; }
+  .row label { display:flex; align-items:center; gap:9px; cursor:pointer; }
+  .row input[type=checkbox] { width:12px; height:12px; margin:0; accent-color:#111; }
+  .swatch { width:8px; height:8px; border-radius:50%; border:1px solid rgba(0,0,0,.12); flex:none; }
+  .row .lbl { color:var(--muted); }
+  select.btn { font:inherit; font-size:11px; border:1px solid var(--line); background:#fff; color:var(--text); padding:3px 6px; border-radius:2px; max-width:150px; }
+  .btn { font:inherit; font-size:11px; border:1px solid #cfcfcf; background:#fff; color:var(--text); padding:6px 10px; border-radius:2px; cursor:pointer; }
+  .btn:hover { border-color:#111; }
+  .btn.dark { background:#111; color:#fff; border-color:#111; }
+  .btn.link { border:0; padding:0; color:var(--muted); text-decoration:underline; text-underline-offset:2px; background:none; }
+  .btn.link:hover { color:var(--text); }
+  .actions { display:flex; gap:6px; margin-top:10px; }
+  .actions .btn { flex:1; }
+  .kv { display:flex; justify-content:space-between; gap:12px; min-height:26px; align-items:baseline; color:var(--muted); }
+  .kv b { color:var(--text); font-weight:500; text-align:right; }
+  details { margin-top:6px; }
+  summary { font-size:10px; color:var(--muted); cursor:pointer; letter-spacing:.06em; text-transform:uppercase; }
+  #seal-detail { color:var(--muted); font-size:10px; line-height:1.5; white-space:pre-line; padding-top:6px; }
+  #status { padding:0 18px 10px; color:var(--muted); font-size:10px; }
+  #footer { margin-top:auto; border-top:1px solid var(--line); padding:12px 18px 14px; display:flex; gap:16px; }
+  #stage { position:relative; overflow:hidden; min-width:0; }
+  canvas { display:block; }
+  #readout { position:absolute; top:14px; left:50%; transform:translateX(-50%); border:1px solid var(--line); background:rgba(255,255,255,.92);
+    border-radius:2px; padding:6px 12px; font-size:10.5px; letter-spacing:.06em; color:var(--muted); white-space:nowrap; }
+  #readout b { color:var(--text); font-weight:600; margin:0 2px; }
+  #views { position:absolute; top:14px; right:14px; display:flex; flex-direction:column; border:1px solid var(--line); background:rgba(255,255,255,.92); border-radius:2px; }
+  #views button { font:inherit; font-size:10.5px; border:0; background:none; padding:6px 12px; cursor:pointer; color:var(--muted); text-align:left; }
+  #views button:hover { color:var(--text); }
+  #views button.on { color:var(--text); background:#f3f3f3; }
+  #hint, #sig { position:absolute; bottom:12px; color:var(--muted); font-size:10px; letter-spacing:.06em; }
+  #hint { left:14px; } #sig { right:14px; }
+  /* 加载进度：顶部一条细线 + 左栏在加载完成前不可点 */
+  #progress { position:absolute; top:0; left:0; height:2px; width:0; background:#111; transition:width .2s; z-index:5; }
+  body.loading #panel { pointer-events:none; opacity:.55; }
+  body.loading #views, body.loading #readout { opacity:.35; }
+  #toast { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); background:#111; color:#fff; font-size:11px; padding:6px 12px; border-radius:2px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  #toast.on { opacity:1; }
+  body.demo #hint, body.demo #sig, body.demo #views, body.demo #toast { display:none; }
+  @media (max-width:760px) {
+    #app { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
+    #panel { max-height:44vh; border-right:0; border-bottom:1px solid var(--line); }
+    .group { padding:10px 16px 12px; }
+    .row { min-height:34px; }            /* 触控目标 */
+    .row input[type=checkbox] { width:16px; height:16px; }
+    select.btn, .btn { font-size:12px; padding:6px 8px; }
+    #readout { font-size:10px; padding:5px 8px; top:10px; }
+    #views { top:10px; right:10px; }
+    #views button { padding:8px 12px; }
+  }
+  #gridwrap { position:absolute; inset:0; background:rgba(255,255,255,.97); display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; }
+  #gridwrap.on { display:flex; }
+  #gridwrap canvas { max-width:100%; max-height:calc(100% - 44px); border:1px solid var(--line); background:#fff; }
+  #gridwrap .bar { display:flex; gap:8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <header>
+      <h1>PDT GOGGLES</h1>
+      <span class="badge">LIVE</span>
+    </header>
+
+    <div class="group open" id="g-head">
+      <button>Head</button>
+      <div class="body">
+        <div class="row"><label><input type="checkbox" id="chk-head" checked> Scan</label><span class="swatch" style="background:#5b93e8"></span></div>
+        <div class="row"><label><input type="checkbox" id="chk-pdt"> Pressure map</label><span class="swatch" style="background:#b40426"></span></div>
+        <div class="row"><label><input type="checkbox" id="chk-headsolid"> Solid</label><span class="swatch" style="background:#d9d9d9"></span></div>
+      </div>
+    </div>
+
+    <div class="group open" id="g-variant">
+      <button>Structure</button>
+      <div class="body">
+        <div class="row"><span class="lbl">Back support</span>
+          <select id="sel-pos" class="btn">
+            <option value="low">low</option>
+            <option value="mid" selected>mid</option>
+            <option value="high">high</option>
+          </select></div>
+        <div class="row"><span class="lbl">Density</span>
+          <select id="sel-den" class="btn">
+            <option value="sparse">sparse · 3</option>
+            <option value="mid" selected>mid · 6</option>
+            <option value="dense">dense · 9</option>
+          </select></div>
+        <div class="actions"><button class="btn" id="btn-grid">All 9</button><button class="btn" id="btn-sheet">Sheet</button></div>
+      </div>
+    </div>
+
+    <div class="group open" id="g-parts">
+      <button>Parts</button>
+      <div class="body">
+        <div class="row"><label><input type="checkbox" id="chk-frame" checked> Frame</label><button class="btn link" id="btn-export">STL</button></div>
+        <div class="row"><span class="lbl" style="padding-left:21px">Finish</span>
+          <select id="finish" class="btn">
+            <option value="matte">matte black</option>
+            <option value="soft">soft grey</option>
+            <option value="metal">bronze</option>
+          </select></div>
+        <div class="row"><label><input type="checkbox" id="chk-lens" checked> Lens</label><button class="btn link" id="btn-export-lens">STL</button></div>
+        <div class="row"><span class="lbl" style="padding-left:21px">Tint</span>
+          <select id="tint" class="btn">
+            <option value="smoke">smoke</option>
+            <option value="mirror">chrome mirror</option>
+            <option value="clear">clear</option>
+          </select></div>
+        <div class="row"><label><input type="checkbox" id="chk-seal"> Seal ring</label><span class="swatch" style="background:#3a3a3a"></span></div>
+        <div class="row"><label><input type="checkbox" id="chk-overlay"> Seal check</label><span class="swatch" style="background:var(--ok)"></span></div>
+        <div class="row"><label><input type="checkbox" id="chk-ref"> May 2026 reference</label><span class="swatch" style="background:#c9a27a"></span></div>
+      </div>
+    </div>
+
+    <div class="group open" id="g-specs">
+      <button>Specs</button>
+      <div class="body" id="specs">
+        <div class="kv"><span>Overall</span><b id="sp-overall">—</b></div>
+        <div class="kv"><span>Lens</span><b id="sp-lens">—</b></div>
+        <div class="kv"><span>Base curve</span><b id="sp-base">—</b></div>
+        <div class="kv"><span>Mass · TPU 50% infill</span><b id="sp-mass">—</b></div>
+        <div class="kv"><span>Seal</span><b id="sp-seal">—</b></div>
+        <div class="kv"><span>Lens edge</span><b id="sp-edge">—</b></div>
+        <details><summary>report</summary><div id="seal-detail"></div></details>
+        <span id="sp-faces" hidden></span>
+      </div>
+    </div>
+
+    <div id="status">loading…</div>
+    <div id="footer">
+      <button class="btn link" id="btn-reset" title="R">Reset</button>
+      <button class="btn link" id="btn-save" title="Save the current view as PNG">Save image</button>
+      <button class="btn link" id="btn-copy" title="Copy the spec lines">Copy specs</button>
+      <button class="btn link" id="btn-share" title="Copy a link that opens this exact configuration">Share</button>
+    </div>
+  </aside>
+
+  <main id="stage">
+    <div id="readout">OVERALL SIZE <b id="ro-w">—</b> W · <b id="ro-h">—</b> H · <b id="ro-d">—</b> D mm</div>
+    <div id="views">
+      <button data-view="iso" class="on">Iso</button>
+      <button data-view="front">Front</button>
+      <button data-view="top">Top</button>
+      <button data-view="side">Side</button>
+    </div>
+    <div id="progress"></div>
+    <div id="hint">drag · scroll · keys 1–4 views · R reset</div>
+    <div id="sig">DEYING CHEN</div>
+    <div id="toast"></div>
+    <div id="gridwrap">
+      <canvas id="gridcanvas"></canvas>
+      <div class="bar"><button class="btn" id="btn-grid-save">Save grid</button><button class="btn" id="btn-grid-close">Close</button></div>
+    </div>
+  </main>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { STLExporter } from "three/addons/exporters/STLExporter.js";
+
+// ---------- 场景 ----------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(32, 1, 1, 5000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// 柔和的主光 + 补光，环境贴图负责反射
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(-200, -400, 300); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(300, -200, 100); scene.add(fill);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xdddddd, 0.6));
+
+// 模型坐标：X 左右、Y 前后（脸朝 -Y）、Z 上。three.js 默认 Y 上，所以把整个组转成 Z 上
+const root = new THREE.Group();
+root.rotation.x = -Math.PI / 2;   // Z-up → Y-up
+scene.add(root);
+
+// ---------- 材质 ----------
+const finishes = {
+  matte: new THREE.MeshPhysicalMaterial({ color: 0x1c1c1c, roughness: 0.62, metalness: 0.0, clearcoat: 0.15, clearcoatRoughness: 0.5 }),
+  soft:  new THREE.MeshPhysicalMaterial({ color: 0x5a5a5a, roughness: 0.85, metalness: 0.0 }),
+  metal: new THREE.MeshPhysicalMaterial({ color: 0x8a6a4a, roughness: 0.35, metalness: 0.9 }),
+};
+// 镜片三种材质：烟灰 / 镜面 / 透明
+const lensMats = {
+  smoke:  new THREE.MeshPhysicalMaterial({ color: 0x263445, roughness: 0.08, metalness: 0.0, transmission: 0.45, thickness: 2.0, ior: 1.5,
+    transparent: true, opacity: 0.92, side: THREE.DoubleSide, clearcoat: 1.0, clearcoatRoughness: 0.05 }),
+  mirror: new THREE.MeshPhysicalMaterial({ color: 0x9fb3c8, roughness: 0.05, metalness: 0.85, transmission: 0.0,
+    side: THREE.DoubleSide, clearcoat: 1.0, clearcoatRoughness: 0.03 }),
+  clear:  new THREE.MeshPhysicalMaterial({ color: 0xdfe7ee, roughness: 0.05, metalness: 0.0, transmission: 0.92, thickness: 2.0, ior: 1.5,
+    transparent: true, opacity: 1.0, side: THREE.DoubleSide, clearcoat: 1.0, clearcoatRoughness: 0.03 }),
+};
+const lensMat = lensMats.smoke;
+const sealMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.95, metalness: 0.0 });
+// 壳是骨架之间的填充：浅灰、哑光，让黑色骨架读作结构
+const shellMat = new THREE.MeshPhysicalMaterial({ color: 0x9a9a98, roughness: 0.75, metalness: 0.0, clearcoat: 0.05 });
+const headSolidMat = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.9, metalness: 0.0 });
+
+// ---------- 加载 ----------
+const loader = new GLTFLoader();
+const CACHE_TAG = Date.now();
+const parts = {};
+const status = document.getElementById("status");
+const progressBar = document.getElementById("progress");
+document.body.classList.add("loading");
+// 加载进度：按文件计数 + 每个文件的字节进度
+const loadState = { files: {}, };
+function updateProgress() {
+  const keys = Object.keys(loadState.files);
+  if (!keys.length) return;
+  let sum = 0;
+  for (const k of keys) sum += loadState.files[k];
+  const pct = Math.round(100 * sum / keys.length);
+  progressBar.style.width = pct + "%";
+  status.textContent = pct < 100 ? `loading ${pct}%` : "up to date";
+  if (pct >= 100) setTimeout(() => { progressBar.style.width = "0"; }, 400);
+}
+function loadGLB(name) {
+  loadState.files[name] = 0;
+  return new Promise((resolve, reject) => {
+    // 带会话时间戳，素材重新生成后浏览器不会拿缓存的旧 GLB
+    loader.load("assets/" + name + ".glb?v=" + CACHE_TAG,
+      (g) => { loadState.files[name] = 1; updateProgress(); resolve(g.scene); },
+      (ev) => { if (ev.total) { loadState.files[name] = Math.min(0.99, ev.loaded / ev.total); updateProgress(); } },
+      reject);
+  });
+}
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast._h); toast._h = setTimeout(() => t.classList.remove("on"), 1600);
+}
+// URL 状态：?pos=mid&den=mid&tint=smoke&finish=matte&head=1&view=iso
+const urlState = new URLSearchParams(location.search);
+function applyUrlStateToControls() {
+  const setSel = (id, v, allowed) => { if (v && allowed.includes(v)) document.getElementById(id).value = v; };
+  setSel("sel-pos", urlState.get("pos"), ["low", "mid", "high"]);
+  setSel("sel-den", urlState.get("den"), ["sparse", "mid", "dense"]);
+  setSel("tint", urlState.get("tint"), ["smoke", "mirror", "clear"]);
+  setSel("finish", urlState.get("finish"), ["matte", "soft", "metal"]);
+  if (urlState.get("head") === "0") document.getElementById("chk-head").checked = false;
+}
+function writeUrlState() {
+  const p = new URLSearchParams();
+  p.set("pos", document.getElementById("sel-pos").value);
+  p.set("den", document.getElementById("sel-den").value);
+  p.set("tint", document.getElementById("tint").value);
+  p.set("finish", document.getElementById("finish").value);
+  if (!document.getElementById("chk-head").checked) p.set("head", "0");
+  if (currentView) p.set("view", currentView);
+  history.replaceState(null, "", "?" + p.toString());
+}
+let currentView = "iso";
+applyUrlStateToControls();
+function firstMesh(obj) {
+  let found = null;
+  obj.traverse((o) => { if (!found && o.isMesh) found = o; });
+  return found;
+}
+
+const specs = await fetch("assets/specs.json").then((r) => r.json());
+const [frameScene, lensScene, sealScene, headScene, headPtsScene] = await Promise.all([loadGLB("frame"), loadGLB("lens"), loadGLB("seal"), loadGLB("head"), loadGLB("head_points")]);
+
+const frame = firstMesh(frameScene); frame.material = finishes.matte; frame.geometry.computeVertexNormals();
+const lens = firstMesh(lensScene); lens.material = lensMat; lens.geometry.computeVertexNormals();
+const seal = firstMesh(sealScene); seal.material = sealMat; seal.geometry.computeVertexNormals();
+const headMesh = firstMesh(headScene);
+const headGeo = headMesh.geometry;
+headGeo.computeVertexNormals();
+
+// 稠密点云（表面采样 60k 点）两套颜色：统一蓝 / 顶点色（PDT）
+let ptsSrc = null;
+headPtsScene.traverse((o) => { if (!ptsSrc && o.isPoints) ptsSrc = o; });
+const srcGeo = ptsSrc ? ptsSrc.geometry : headGeo;
+const n = srcGeo.attributes.position.count;
+const blue = new Float32Array(n * 3);
+const c = new THREE.Color(0x5b93e8);
+for (let i = 0; i < n; i++) { blue[i * 3] = c.r; blue[i * 3 + 1] = c.g; blue[i * 3 + 2] = c.b; }
+const pdt = srcGeo.attributes.color ? srcGeo.attributes.color.clone() : new THREE.BufferAttribute(blue.slice(), 3);
+const headPointsGeo = new THREE.BufferGeometry();
+headPointsGeo.setAttribute("position", srcGeo.attributes.position);
+headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3));
+const headPoints = new THREE.Points(headPointsGeo, new THREE.PointsMaterial({ size: 1.1, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.85 }));
+const headSolid = new THREE.Mesh(headGeo, headSolidMat);
+headSolid.visible = false;
+
+// 头盔壳：已搁置，保留对象但不加载、不显示
+const shell = new THREE.Mesh(new THREE.BufferGeometry(), shellMat);
+shell.visible = false;
+seal.visible = false;   // 密封环只作参考，默认隐藏（这个设计里眼圈管子本身就是密封环）
+// Seal overlay：镜片边界整圈按埋深着色，透视画在管子里（depthTest 关掉），露缝点加大红点
+const overlay = new THREE.Group();
+overlay.visible = false;
+root.add(overlay);
+for (const o of [frame, lens, seal, shell, headPoints, headSolid]) root.add(o);
+Object.assign(parts, { frame, lens, seal, shell, headPoints, headSolid, overlay });
+function buildOverlay(entry) {
+  while (overlay.children.length) overlay.remove(overlay.children[0]);
+  if (!entry || !entry.lens_edge || !entry.edge_depths) return;
+  const pts = entry.lens_edge, depths = entry.edge_depths;
+  const n = Math.min(pts.length, depths.length);
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const good = new THREE.Color(0x19c37d), warn = new THREE.Color(0xf5a524), bad = new THREE.Color(0xe5484d);
+  const exposed = [];
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = pts[i][0]; pos[i * 3 + 1] = pts[i][1]; pos[i * 3 + 2] = pts[i][2];
+    const d = depths[i];
+    const c = d < 0 ? bad : (d < 1.0 ? warn : good);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    if (d < 0) exposed.push(pts[i]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const line = new THREE.LineLoop(g, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.95 }));
+  line.renderOrder = 10;
+  const dots = new THREE.Points(g, new THREE.PointsMaterial({ vertexColors: true, size: 2.2, depthTest: false, transparent: true, opacity: 0.95 }));
+  dots.renderOrder = 11;
+  overlay.add(line, dots);
+  for (const p of exposed) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(2.5, 12, 12), new THREE.MeshBasicMaterial({ color: 0xe5484d, depthTest: false }));
+    s.position.set(p[0], p[1], p[2]); s.renderOrder = 12; overlay.add(s);
+  }
+  const inside = depths.filter((d) => d >= 0).length;
+  const sorted = depths.slice().sort((a, b) => a - b);
+  const med = sorted[Math.floor(sorted.length / 2)];
+  document.getElementById("sp-edge").textContent = `${inside}/${depths.length} in · min ${sorted[0].toFixed(1)} mm`;
+  document.getElementById("sp-edge").style.color = inside === depths.length ? "#1a7f37" : "#b42318";
+}
+
+// ---------- 读数 ----------
+const size = specs.size;
+document.getElementById("ro-w").textContent = size[0].toFixed(1);
+document.getElementById("ro-h").textContent = size[2].toFixed(1);
+document.getElementById("ro-d").textContent = size[1].toFixed(1);
+document.getElementById("sp-overall").textContent = `${size[0].toFixed(0)} × ${size[2].toFixed(0)} × ${size[1].toFixed(0)} mm`;
+document.getElementById("sp-lens").textContent = `${specs.lens_w} × ${specs.lens_h} mm`;
+document.getElementById("sp-faces").textContent = specs.frame_faces.toLocaleString();
+document.getElementById("sp-mass").textContent = specs.est_mass_g ? `${specs.est_mass_g} g` : "—";
+status.textContent = "up to date";
+
+// ---------- 相机 ----------
+const center = new THREE.Vector3((specs.overall.min[0] + specs.overall.max[0]) / 2, (specs.overall.min[1] + specs.overall.max[1]) / 2, (specs.overall.min[2] + specs.overall.max[2]) / 2);
+// 转到 Y-up 坐标
+function toWorld(v) { return new THREE.Vector3(v.x, v.z, -v.y); }
+const target = toWorld(center);
+const dist = 580;
+// 模型脸朝 -Y，转成 Y-up 后脸朝世界 +Z，所以正面相机放在 +Z 一侧
+const views = {
+  iso:   new THREE.Vector3(-0.50, 0.20, 0.84),
+  front: new THREE.Vector3(0, 0.02, 1),
+  top:   new THREE.Vector3(0, 1, 0.0001),
+  side:  new THREE.Vector3(-1, 0.02, 0),
+};
+// 相机平滑过渡：每帧向目标位姿插值
+const camTween = { active: false, from: null, to: null, t0: 0, dur: 0 };
+function tweenCamera(toPos, toTarget, dur) {
+  camTween.from = { p: camera.position.clone(), t: controls.target.clone() };
+  camTween.to = { p: toPos.clone(), t: toTarget.clone() };
+  camTween.t0 = performance.now(); camTween.dur = dur; camTween.active = true;
+}
+function stepTween(now) {
+  if (!camTween.active) return;
+  const k = Math.min(1, (now - camTween.t0) / camTween.dur);
+  const e = k < 0.5 ? 2 * k * k : -1 + (4 - 2 * k) * k;    // ease in-out
+  camera.position.lerpVectors(camTween.from.p, camTween.to.p, e);
+  controls.target.lerpVectors(camTween.from.t, camTween.to.t, e);
+  if (k >= 1) camTween.active = false;
+}
+function setView(name, animate) {
+  const dir = views[name].clone().normalize();
+  const pos = target.clone().add(dir.multiplyScalar(dist));
+  camera.up.set(0, 1, 0);
+  if (animate) tweenCamera(pos, target, 700);
+  else { camera.position.copy(pos); controls.target.copy(target); controls.update(); }
+  currentView = name;
+  document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("on", b.dataset.view === name));
+  writeUrlState();
+}
+setView(["iso", "front", "top", "side"].includes(urlState.get("view")) ? urlState.get("view") : "iso");
+document.body.classList.remove("loading");
+
+// ---------- 交互 ----------
+document.querySelectorAll("#views button").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view, true)));
+const bind = (id, fn) => document.getElementById(id).addEventListener("change", (e) => { fn(e.target.checked); writeUrlState(); });
+// 简短提示（hover）
+const tips = {
+  "sel-pos": "Where the support network anchors on the back of the head: occiput ↔ crown",
+  "sel-den": "How many pressure plates seed the support network",
+  "chk-head": "Scanned head, as a point cloud", "chk-pdt": "Colour the head by pressure-discomfort threshold",
+  "chk-solid": "", "chk-overlay": "Lens edge sampled 400×, coloured by how deep it sits inside the frame",
+  "chk-seal": "Contact ring on the skin, the seal surface", "chk-ref": "Hand-refined May 2026 version, overlaid",
+  "tint": "Lens tint", "finish": "Frame finish", "btn-grid": "Render all nine variants side by side (G)", "btn-sheet": "One-page product sheet (S)",
+};
+for (const [id, t] of Object.entries(tips)) { const el = document.getElementById(id); if (el && t) el.title = t; }
+bind("chk-head", (v) => { headPoints.visible = v && !document.getElementById("chk-headsolid").checked; });
+bind("chk-headsolid", (v) => { headSolid.visible = v; headPoints.visible = !v && document.getElementById("chk-head").checked; });
+bind("chk-pdt", (v) => { headPointsGeo.setAttribute("color", v ? pdt : new THREE.BufferAttribute(blue, 3)); headPointsGeo.attributes.color.needsUpdate = true;
+  headSolid.material = v ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }) : headSolidMat; });
+bind("chk-frame", (v) => frame.visible = v);
+bind("chk-lens", (v) => lens.visible = v);
+bind("chk-seal", (v) => seal.visible = v);
+bind("chk-overlay", (v) => overlay.visible = v);
+// 5 月手工收过 SubD 的原版，半透明古铜色叠在当前变体上做对照
+const refMat = new THREE.MeshPhysicalMaterial({ color: 0xc9a27a, roughness: 0.4, metalness: 0.6, transparent: true, opacity: 0.55, depthWrite: false });
+const refMesh = new THREE.Mesh(new THREE.BufferGeometry(), refMat);
+refMesh.visible = false; root.add(refMesh);
+let refLoaded = false;
+bind("chk-ref", async (v) => {
+  if (v && !refLoaded) {
+    try { const s = await loadGLB("variants/reference-may"); const m = firstMesh(s); m.geometry.computeVertexNormals(); refMesh.geometry = m.geometry; refLoaded = true; }
+    catch (e) { status.textContent = "reference not available"; return; }
+  }
+  refMesh.visible = v;
+});
+document.getElementById("tint").addEventListener("change", (e) => { lens.material = lensMats[e.target.value]; writeUrlState(); });
+document.getElementById("finish").addEventListener("change", (e) => { frame.material = finishes[e.target.value]; writeUrlState(); });
+// URL 里带的材质 / 头显示立即生效
+lens.material = lensMats[document.getElementById("tint").value] || lensMats.smoke;
+frame.material = finishes[document.getElementById("finish").value] || finishes.matte;
+headPoints.visible = document.getElementById("chk-head").checked;
+
+// ---------- 变体：后脑支撑位置 × 支撑疏密，预先由 Grasshopper 批量算好 ----------
+let manifest = null;
+try { manifest = await fetch("assets/variants/manifest.json?t=" + Date.now()).then((r) => r.ok ? r.json() : null); } catch (e) { manifest = null; }   // 带时间戳，避免浏览器缓存旧 manifest
+const variantCache = {};      // key -> { frame, lens, shell } 几何
+let shellWanted = true;       // Parts 里的 Helmet shell 勾选
+let currentEntry = null;
+function variantKey() {
+  return "pos-" + document.getElementById("sel-pos").value + "__den-" + document.getElementById("sel-den").value;
+}
+// 头盔壳已搁置：永远不显示
+function applyShellVisibility() { shell.visible = false; }
+function applySealReport(entry) {
+  const el = document.getElementById("sp-seal");
+  const det = document.getElementById("seal-detail");
+  if (!entry || !entry.report) { el.textContent = "—"; det.textContent = ""; return; }
+  el.textContent = entry.pass ? "PASS" : "FAIL";
+  el.style.color = entry.pass ? "#1a7f37" : "#b42318";
+  const lines = Array.isArray(entry.report) ? entry.report : [entry.report];
+  det.textContent = lines.filter((l) => !l.startsWith("SEAL CHECK")).join("\n");
+}
+function applySpecs(entry) {
+  if (!entry) return;
+  currentEntry = entry;
+  applySealReport(entry);
+  // 整体尺寸 = 镜框包围盒并上镜片 / 泡棉（它们在所有变体里相同）
+  const mn = [Math.min(entry.frame_bounds.min[0], specs.overall.min[0]), Math.min(entry.frame_bounds.min[1], specs.overall.min[1]), Math.min(entry.frame_bounds.min[2], specs.overall.min[2])];
+  const mx = [Math.max(entry.frame_bounds.max[0], specs.overall.max[0]), Math.max(entry.frame_bounds.max[1], specs.overall.max[1]), Math.max(entry.frame_bounds.max[2], specs.overall.max[2])];
+  const sz = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]];
+  document.getElementById("ro-w").textContent = sz[0].toFixed(1);
+  document.getElementById("ro-h").textContent = sz[2].toFixed(1);
+  document.getElementById("ro-d").textContent = sz[1].toFixed(1);
+  document.getElementById("sp-overall").textContent = `${sz[0].toFixed(0)} × ${sz[2].toFixed(0)} × ${sz[1].toFixed(0)} mm`;
+  document.getElementById("sp-faces").textContent = entry.faces.toLocaleString();
+  document.getElementById("sp-mass").textContent = `${entry.est_mass_g} g`;
+  if (entry.lens_width_mm) document.getElementById("sp-lens").textContent = `${entry.lens_width_mm} × ${entry.lens_height_mm} × 2 mm`;
+  if (entry.lens_base_curve) document.getElementById("sp-base").textContent = `${entry.lens_base_curve} · R ${entry.lens_radius_mm}`;
+}
+async function loadVariant() {
+  if (!manifest) return;
+  const key = variantKey();
+  const entry = manifest.variants[key];
+  if (!entry) { status.textContent = "variant not available: " + key; return; }
+  status.textContent = "loading " + key + " …";
+  let set = variantCache[key];
+  if (!set) {
+    set = {};
+    const loads = [loadGLB("variants/" + key)];
+    if (entry.has_lens) loads.push(loadGLB("variants/" + key + "__lens"));
+    const results = await Promise.all(loads);
+    set.frame = firstMesh(results[0]).geometry; set.frame.computeVertexNormals();
+    if (entry.has_lens) { set.lens = firstMesh(results[1]).geometry; set.lens.computeVertexNormals(); }
+    variantCache[key] = set;
+  }
+  frame.geometry = set.frame;
+  if (set.lens) lens.geometry = set.lens;
+  applySpecs(entry);
+  buildOverlay(entry);
+  applyShellVisibility();
+  status.textContent = "up to date";
+}
+document.getElementById("sel-pos").addEventListener("change", () => { loadVariant(); writeUrlState(); });
+document.getElementById("sel-den").addEventListener("change", () => { loadVariant(); writeUrlState(); });
+
+// 九宫格：行 = 后脑支撑位置，列 = 疏密；每格用同一台相机离屏渲染一次
+async function renderGrid() {
+  if (!manifest) return;
+  const posList = ["low", "mid", "high"], denList = ["sparse", "mid", "dense"];
+  const cell = 420, pad = 36;
+  const gc = document.getElementById("gridcanvas");
+  gc.width = pad + cell * 3; gc.height = pad + cell * 3;
+  const ctx = gc.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, gc.width, gc.height);
+  ctx.fillStyle = "#777"; ctx.font = "12px Inter, Arial, sans-serif"; ctx.textAlign = "center";
+  denList.forEach((d, j) => ctx.fillText("density · " + d, pad + cell * j + cell / 2, 22));
+  ctx.save(); ctx.translate(14, 0); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center";
+  posList.forEach((p, i) => ctx.fillText("back support · " + p, -(pad + cell * i + cell / 2), 4));
+  ctx.restore();
+  // 固定一台斜前方相机，避免每格视角不同
+  const savedPos = camera.position.clone(), savedTarget = controls.target.clone();
+  const savedGeo = frame.geometry, savedLens = lens.geometry, savedOverlay = overlay.visible;
+  overlay.visible = false;
+  const prevSize = new THREE.Vector2(); renderer.getSize(prevSize);
+  renderer.setSize(cell, cell, false);
+  camera.aspect = 1; camera.updateProjectionMatrix();
+  const dir = views.iso.clone().normalize();
+  camera.position.copy(target.clone().add(dir.multiplyScalar(dist)));
+  camera.lookAt(target);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      const key = "pos-" + posList[i] + "__den-" + denList[j];
+      const e = manifest.variants[key];
+      if (!variantCache[key]) {
+        const loads = [loadGLB("variants/" + key)];
+        if (e.has_lens) loads.push(loadGLB("variants/" + key + "__lens"));
+        const results = await Promise.all(loads);
+        const set = { frame: firstMesh(results[0]).geometry };
+        set.frame.computeVertexNormals();
+        if (e.has_lens) { set.lens = firstMesh(results[1]).geometry; set.lens.computeVertexNormals(); }
+        variantCache[key] = set;
+      }
+      const set = variantCache[key];
+      frame.geometry = set.frame;
+      if (set.lens) lens.geometry = set.lens;
+      renderer.render(scene, camera);
+      ctx.drawImage(renderer.domElement, 0, 0, renderer.domElement.width, renderer.domElement.height, pad + cell * j, pad + cell * i, cell, cell);
+      ctx.fillStyle = "#111"; ctx.font = "11px Inter, Arial, sans-serif"; ctx.textAlign = "left";
+      const inside = e.edge_depths ? e.edge_depths.filter((d) => d >= 0).length : null;
+      ctx.fillText(`H ${e.frame_size[2].toFixed(0)} mm · ${e.est_mass_g} g · lens base ${e.lens_base_curve || "–"} · seal ${e.pass ? "PASS" : "FAIL"}` + (inside !== null ? ` ${inside}/${e.edge_depths.length}` : ""), pad + cell * j + 10, pad + cell * i + cell - 10);
+    }
+  }
+  // 还原
+  frame.geometry = savedGeo; lens.geometry = savedLens; overlay.visible = savedOverlay;
+  renderer.setSize(prevSize.x, prevSize.y, false);
+  resize();
+  camera.position.copy(savedPos); controls.target.copy(savedTarget); controls.update();
+  document.getElementById("btn-grid-save").dataset.name = "goggles_variants_3x3.png";
+  document.getElementById("gridwrap").classList.add("on");
+}
+document.getElementById("btn-grid").addEventListener("click", renderGrid);
+
+// 产品图：主视角 + 正 / 侧 / 顶三视图 + 规格块，排成一张可存的 PNG
+async function renderSheet() {
+  const W = 1600, H = 1000, pad = 40;
+  const gc = document.getElementById("gridcanvas");
+  gc.width = W; gc.height = H;
+  const ctx = gc.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+  const savedPos = camera.position.clone(), savedTarget = controls.target.clone(), savedOverlay = overlay.visible, savedHead = headPoints.visible;
+  const prevSize = new THREE.Vector2(); renderer.getSize(prevSize);
+  overlay.visible = false;
+  function shot(dirVec, w, h, lookDist, showHead) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    headPoints.visible = showHead;
+    const dir = dirVec.clone().normalize();
+    camera.position.copy(target.clone().add(dir.multiplyScalar(lookDist)));
+    camera.up.set(0, 1, 0); camera.lookAt(target);
+    renderer.render(scene, camera);
+    return renderer.domElement;
+  }
+  // 主图：斜前方，带点云头
+  const heroW = 980, heroH = H - pad * 2;
+  // 注意：画布像素尺寸 = 逻辑尺寸 × devicePixelRatio，源矩形要用 el.width / el.height
+  const heroEl = shot(views.iso, heroW, heroH, 640, true);
+  ctx.drawImage(heroEl, 0, 0, heroEl.width, heroEl.height, pad, pad, heroW, heroH);
+  // 三视图：不带头，纯产品
+  const smallW = 500, smallH = 270, x2 = pad + heroW + 40;
+  const trio = [["front", views.front], ["side", views.side], ["top", views.top]];
+  trio.forEach(([name, v], i) => {
+    const y = pad + i * (smallH + 14);
+    const el = shot(v, smallW, smallH, 520, false);
+    ctx.drawImage(el, 0, 0, el.width, el.height, x2, y, smallW, smallH);
+    ctx.fillStyle = "#777"; ctx.font = "11px Inter, Arial, sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(name.toUpperCase(), x2 + 8, y + 16);
+  });
+  // 规格块
+  const e = currentEntry || {};
+  const key = variantKey();
+  const lines = [
+    ["PDT GOGGLES", ""],
+    ["Variant", key.replace("pos-", "back support ").replace("__den-", " · density ")],
+    ["Overall", document.getElementById("sp-overall").textContent],
+    ["Lens", document.getElementById("sp-lens").textContent],
+    ["Base curve", document.getElementById("sp-base").textContent],
+    ["Est. mass", document.getElementById("sp-mass").textContent],
+    ["Seal check", document.getElementById("sp-seal").textContent + " — " + document.getElementById("sp-edge").textContent],
+  ];
+  let ty = pad + 3 * (smallH + 14) + 10;
+  ctx.textAlign = "left";
+  lines.forEach(([k, v], i) => {
+    if (i === 0) { ctx.fillStyle = "#111"; ctx.font = "600 15px Inter, Arial, sans-serif"; ctx.fillText(k, x2, ty); ty += 22; return; }
+    ctx.fillStyle = "#777"; ctx.font = "11px Inter, Arial, sans-serif"; ctx.fillText(k, x2, ty);
+    ctx.fillStyle = "#111"; ctx.font = "12px Inter, Arial, sans-serif"; ctx.fillText(v, x2 + 90, ty);
+    ty += 18;
+  });
+  ctx.fillStyle = "#999"; ctx.font = "10px Inter, Arial, sans-serif"; ctx.textAlign = "right";
+  ctx.fillText("DEYING CHEN · pressure-fit wearing structure · solved in Grasshopper", W - pad, H - 16);
+  // 还原
+  renderer.setSize(prevSize.x, prevSize.y, false); resize();
+  camera.position.copy(savedPos); controls.target.copy(savedTarget); controls.update();
+  overlay.visible = savedOverlay; headPoints.visible = savedHead;
+  document.getElementById("btn-grid-save").dataset.name = "pdt_goggles_sheet_" + key + ".png";
+  document.getElementById("gridwrap").classList.add("on");
+}
+document.getElementById("btn-sheet").addEventListener("click", renderSheet);
+document.getElementById("btn-grid-close").addEventListener("click", () => document.getElementById("gridwrap").classList.remove("on"));
+document.getElementById("btn-grid-save").addEventListener("click", () => {
+  const a = document.createElement("a"); a.download = document.getElementById("btn-grid-save").dataset.name || "goggles_variants_3x3.png";
+  a.href = document.getElementById("gridcanvas").toDataURL("image/png"); a.click();
+});
+if (manifest) { await loadVariant(); } else {
+  status.textContent = "no variant files — showing May 2026 output";
+}
+document.getElementById("btn-reset").addEventListener("click", () => {
+  for (const id of ["chk-head", "chk-frame", "chk-lens"]) document.getElementById(id).checked = true;
+  for (const id of ["chk-pdt", "chk-headsolid", "chk-seal", "chk-overlay"]) document.getElementById(id).checked = false;
+  headPoints.visible = true; headSolid.visible = false; frame.visible = lens.visible = true; seal.visible = false; overlay.visible = false;
+  document.getElementById("tint").value = "smoke"; lens.material = lensMats.smoke;
+  document.getElementById("finish").value = "matte"; frame.material = finishes.matte;
+  headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3));
+  document.getElementById("sel-pos").value = "mid"; document.getElementById("sel-den").value = "mid";
+  loadVariant();
+  setView("iso", true);
+  writeUrlState();
+});
+document.getElementById("btn-save").addEventListener("click", () => {
+  renderer.render(scene, camera);
+  const a = document.createElement("a");
+  a.download = "goggles_view.png";
+  a.href = renderer.domElement.toDataURL("image/png");
+  a.click();
+});
+document.getElementById("btn-copy").addEventListener("click", async () => {
+  const text = [...document.querySelectorAll("#specs .kv")].map((r) => r.children[0].textContent + ": " + r.children[1].textContent).join("\n");
+  try { await navigator.clipboard.writeText(text); toast("specs copied"); } catch (e) { status.textContent = text; }
+});
+document.getElementById("btn-share").addEventListener("click", async () => {
+  writeUrlState();
+  try { await navigator.clipboard.writeText(location.href); toast("link copied"); } catch (e) { toast(location.href); }
+});
+// 快捷键：1–4 视角，R 重置，G 九宫格，S 产品图，H 头显示
+window.addEventListener("keydown", (e) => {
+  if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  const viewKeys = { "1": "iso", "2": "front", "3": "top", "4": "side" };
+  if (viewKeys[k]) { setView(viewKeys[k], true); return; }
+  if (k === "r") document.getElementById("btn-reset").click();
+  else if (k === "g") document.getElementById("btn-grid").click();
+  else if (k === "s") document.getElementById("btn-sheet").click();
+  else if (k === "h") { const c = document.getElementById("chk-head"); c.checked = !c.checked; c.dispatchEvent(new Event("change")); }
+  else if (k === "escape") document.getElementById("gridwrap").classList.remove("on");
+});
+
+// 演示模式 ?demo=1：固定编排 25 秒，给录屏用；window.__demoDone 变 true 表示结束
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function setSelect(id, value) { const el = document.getElementById(id); el.value = value; el.dispatchEvent(new Event("change")); }
+function setCheck(id, value) { const el = document.getElementById(id); el.checked = value; el.dispatchEvent(new Event("change")); }
+async function runDemo() {
+  document.body.classList.add("demo");
+  window.__demoDone = false;
+  document.getElementById("btn-reset").click();
+  controls.autoRotate = true; controls.autoRotateSpeed = 1.2;
+  await sleep(3000);
+  controls.autoRotate = false;
+  setView("front", true); await sleep(1800);
+  setCheck("chk-head", false); await sleep(1200);
+  setSelect("sel-den", "dense"); await sleep(2200);
+  setSelect("sel-den", "sparse"); await sleep(2200);
+  setSelect("sel-pos", "high"); await sleep(2200);
+  setSelect("sel-pos", "mid"); setSelect("sel-den", "mid"); await sleep(1800);
+  setView("side", true); await sleep(1000);
+  setCheck("chk-overlay", true); await sleep(2600);
+  setCheck("chk-overlay", false);
+  setView("iso", true); setSelect("tint", "mirror"); await sleep(2200);
+  setSelect("tint", "smoke"); setCheck("chk-head", true);
+  controls.autoRotate = true; controls.autoRotateSpeed = 1.0; await sleep(3500);
+  controls.autoRotate = false;
+  window.__demoDone = true;
+  document.body.classList.remove("demo");
+}
+window.__demo = runDemo;
+if (urlState.get("demo") === "1") { setTimeout(runDemo, 800); }
+function exportStl(mesh, filename) {
+  const exporter = new STLExporter();
+  const data = exporter.parse(mesh, { binary: true });
+  const blob = new Blob([data], { type: "application/octet-stream" });
+  const a = document.createElement("a"); a.download = filename; a.href = URL.createObjectURL(blob); a.click();
+}
+document.getElementById("btn-export").addEventListener("click", () => exportStl(frame, "pdt_goggles_frame_" + variantKey() + ".stl"));
+document.getElementById("btn-export-lens").addEventListener("click", () => exportStl(lens, "pdt_goggles_lens_" + variantKey() + ".stl"));
+
+// ---------- 尺寸与循环 ----------
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, true);   // 同时写 CSS 尺寸，高 DPR 屏幕上画布才不会溢出
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+renderer.setAnimationLoop(() => { stepTween(performance.now()); controls.update(); renderer.render(scene, camera); });
+window.__viewer = { setView, parts, camera, controls, renderer, scene };
+</script>
+</body>
+</html>
