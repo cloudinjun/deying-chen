@@ -229,6 +229,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { STLExporter } from "three/addons/exporters/STLExporter.js";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 
 // ---------- 场景 ----------
 const stage = document.getElementById("stage");
@@ -624,6 +627,62 @@ function applySpecs(entry) {
   if (entry.lens_base_curve) document.getElementById("sp-base").textContent = `${entry.lens_base_curve} · R ${entry.lens_radius_mm}`;
   if (entry.lens_mount) document.getElementById("sp-blank").textContent = `cylindrical · base 6 · ${entry.lens_mount}`;
 }
+// ---------- 生成动画 ----------
+// 按管线顺序：落点（压力耐受最高处）→ 路径（SupportGrid 主枝）→ 管件（GridForm，从头顶向眼圈扫出）→ 镜片（标准毛坯按头安装）
+renderer.localClippingEnabled = true;
+const growPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1000);      // 世界 Y 向上：y ≥ -constant 的部分可见；常驻在镜框材质上，闲置时 1000 = 全可见
+for (const m of Object.values(finishes)) { m.clippingPlanes = [growPlane]; m.needsUpdate = true; }
+let genToken = 0;
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const nextFrame = (f) => (document.hidden ? setTimeout(() => f(performance.now()), 16) : requestAnimationFrame(f));
+function animate(ms, fn, alive) {
+  return new Promise((res) => {
+    const t0 = performance.now();
+    (function step(t) {
+      if (alive && !alive()) { res(); return; }
+      const k = Math.min(1, (t - t0) / ms); fn(easeOut(k), k); if (k < 1) nextFrame(step); else res();
+    })(t0);
+  });
+}
+async function playGeneration(full) {
+  const my = ++genToken;
+  const alive = () => my === genToken;
+  const T = full ? { plate: 900, line: 1200, tube: 1500, lens: 800 } : { plate: 350, line: 500, tube: 700, lens: 350 };
+  const plates = anchorItems.filter((it) => it.sprite);
+  const lines = branchLines.slice();
+  // 起始状态：落点缩成零、路径长度零、管件整段被裁掉、镜片在前方 60 mm 且透明
+  for (const it of plates) it.sprite.scale.set(0.001, 0.001, 1);
+  for (const l of lines) l.geo.instanceCount = 0;
+  growPlane.constant = -400;
+  const lensWasVisible = lens.visible; lens.visible = false; lens.position.y = -60;
+  const tagsEl = tagLayer; tagsEl.style.opacity = "0";
+  // 1 落点依次弹出
+  await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
+  if (my !== genToken) return;
+  tagsEl.style.opacity = "";
+  // 2 路径从落点长向眼圈
+  await animate(T.line, (e) => { for (const l of lines) l.geo.instanceCount = Math.max(0, Math.round(l.n * e)); }, alive);
+  if (my !== genToken) return;
+  // 3 管件从头顶扫到眼圈：裁切面沿世界 Y 从 190 降到 -20
+  await animate(T.tube, (e) => { growPlane.constant = -(190 - 210 * e); }, alive);
+  if (my !== genToken) return;
+  growPlane.constant = 1000;
+  // 4 镜片从前方合上
+  lens.visible = lensWasVisible;
+  await animate(T.lens, (e) => { lens.position.y = -60 * (1 - e); }, alive);
+  if (my !== genToken) return;
+  lens.position.y = 0;
+}
+function cancelGeneration() {
+  genToken++;
+  growPlane.constant = 1000;
+  lens.position.y = 0; lens.visible = document.getElementById("chk-lens").checked; tagLayer.style.opacity = "";
+  for (const it of anchorItems) if (it.sprite) it.sprite.scale.set(7, 7, 1);
+  for (const l of branchLines) l.geo.instanceCount = l.n;
+}
+const REGEN = urlState.get("regen") !== "0" && !THUMB;
+window.__gen = playGeneration;
+let firstGeneration = true;
 async function loadVariant() {
   if (!manifest) return;
   const key = variantKey();
@@ -650,6 +709,8 @@ async function loadVariant() {
   buildOverlay(entry);
   buildAnchors(entry);
   applyShellVisibility();
+  if (REGEN) { cancelGeneration(); playGeneration(firstGeneration); }
+  firstGeneration = false;
   status.textContent = "up to date";
 }
 document.getElementById("sel-pos").addEventListener("change", () => { loadVariant(); writeUrlState(); });
@@ -865,12 +926,32 @@ function buildAnchors(entry) {
     if (isPlate) {
       el = document.createElement("div"); el.className = "tag"; tagLayer.appendChild(el);
     }
-    anchorItems.push({ pos: sp.position.clone(), nrm: n, el, vi });
+    anchorItems.push({ pos: sp.position.clone(), nrm: n, el, vi, sprite: sp });
   };
   // 只画支撑落点；面部地标（眼 / 鼻 / 颊 / 下巴 / 耳）在 manifest 里有，但画出来像斑点，不显示
   for (const xyz of (entry.red_plates || [])) add(xyz, true);
+  // 支撑路径：SupportGrid 在头皮上算出的主枝（落点 → 眼圈），抬离皮肤 1 mm，生成动画里逐段长出
+  branchLines = [];
+  const br = entry.branches || [];
+  const polys = (br.length && Array.isArray(br[0]) && Array.isArray(br[0][0])) ? br : (br.length ? [br] : []);
+  for (const poly of polys) {
+    if (!poly || poly.length < 2) continue;
+    const arr = new Float32Array(poly.length * 3);
+    poly.forEach((xyz, i) => {
+      const q = new THREE.Vector3(xyz[0], xyz[1], xyz[2]);
+      const vi = headTree.nearest(q);
+      if (vi >= 0) q.addScaledVector(headTree.normalAt(vi), 1.0);
+      arr[i * 3] = q.x; arr[i * 3 + 1] = q.y; arr[i * 3 + 2] = q.z;
+    });
+    const g = new LineGeometry(); g.setPositions(arr);
+    const line = new Line2(g, branchMat); line.computeLineDistances();
+    anchorGroup.add(line); branchLines.push({ line, n: poly.length - 1, geo: g });
+  }
   refreshAnchorTags();
 }
+let branchLines = [];
+const branchMat = new LineMaterial({ color: 0x111111, linewidth: 2.5, transparent: true, opacity: 0.75, depthTest: true, worldUnits: false });
+branchMat.resolution.set(renderer.domElement.width, renderer.domElement.height);
 function refreshAnchorTags() {
   const show = document.getElementById("chk-pdt").checked && anchorGroup.visible;
   for (const it of anchorItems) {
@@ -1042,16 +1123,19 @@ async function runDemo() {
   document.getElementById("btn-reset").click();
   if (document.getElementById("sel-map").value !== "female") setSelect("sel-map", "female");
   placeCursor();
-  controls.autoRotate = true; controls.autoRotateSpeed = 1.2;
-  await sleep(2600);
+  // 开头：典型案例的完整生成过程（落点 → 路径 → 管件 → 镜片），镜头缓慢自转
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.9;
+  await sleep(300);
+  cancelGeneration(); await playGeneration(true);
+  await sleep(900);
   controls.autoRotate = false;
   // 1 头：光标扫过头皮读 PDT 数值 → 换受试者，镜框跟着重算
   await demoProbeSweep(); await sleep(600);
-  await demoPick("sel-map", "p20"); await sleep(2300);
-  await demoPick("sel-map", "male"); await sleep(2300);
+  await demoPick("sel-map", "p20"); await sleep(3000);
+  await demoPick("sel-map", "male"); await sleep(3000);
   // 2 结构：疏密、后脑支撑位置
-  await demoPick("sel-den", "dense"); await sleep(2000);
-  await demoPick("sel-pos", "high"); await sleep(2000);
+  await demoPick("sel-den", "dense"); await sleep(2800);
+  await demoPick("sel-pos", "high"); await sleep(2800);
   // 3 视角：正视看镜片，侧视开气密检查
   await demoView("front"); await sleep(1500);
   await demoView("side"); await sleep(500);
@@ -1097,6 +1181,7 @@ function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.setSize(w, h, true);   // 同时写 CSS 尺寸，高 DPR 屏幕上画布才不会溢出
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  branchMat.resolution.set(renderer.domElement.width, renderer.domElement.height);   // 粗线按像素算宽，要跟画布尺寸
 }
 window.addEventListener("resize", resize);
 resize();
