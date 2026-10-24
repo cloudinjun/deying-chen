@@ -1,0 +1,24 @@
+{
+ "order": [
+  "female",
+  "mean",
+  "male",
+  "p20",
+  "p15"
+ ],
+ "labels": {
+  "female": "Female mean",
+  "mean": "All-participant mean",
+  "male": "Male mean",
+  "p20": "Participant 20 \u00b7 normalised",
+  "p15": "Participant 15 \u00b7 normalised"
+ },
+ "scale": {
+  "colormap": "coolwarm",
+  "vmin": 0.0,
+  "vmax": 20.0,
+  "table": "TUDELFT PDT_Mean_nonNorm"
+ },
+ "head_vertices": 10152,
+ "points": 60000
+}

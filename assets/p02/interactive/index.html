@@ -25,6 +25,25 @@
   .swatch { width:8px; height:8px; border-radius:50%; border:1px solid rgba(0,0,0,.12); flex:none; }
   .row .lbl { color:var(--muted); }
   select.btn { font:inherit; font-size:11px; border:1px solid var(--line); background:#fff; color:var(--text); padding:3px 6px; border-radius:2px; max-width:150px; }
+  /* 自定义下拉：原生 select 隐藏只当取值用；展开列表画在页面里，录屏时能看到选项 */
+  select.dd-native { display:none; }
+  .dd { position:relative; flex:none; }
+  .dd-btn { font:inherit; font-size:11px; border:1px solid var(--line); background:#fff; color:var(--text); padding:3px 22px 3px 8px; border-radius:2px;
+    cursor:pointer; max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; position:relative; min-width:64px; }
+  .dd-btn::after { content:""; position:absolute; right:8px; top:50%; width:5px; height:5px; border-right:1px solid var(--muted); border-bottom:1px solid var(--muted); transform:translateY(-70%) rotate(45deg); }
+  .dd-btn:hover, .dd.open .dd-btn { border-color:#111; }
+  .dd-list { position:absolute; right:0; top:calc(100% + 3px); min-width:100%; background:#fff; border:1px solid #111; border-radius:2px; z-index:30; display:none; padding:3px 0; }
+  .dd.open .dd-list { display:block; }
+  .dd-list div { padding:5px 10px 5px 18px; font-size:11px; white-space:nowrap; cursor:pointer; color:var(--text); position:relative; }
+  .dd-list div:hover, .dd-list div.hover { background:#f3f3f3; }
+  .dd-list div.sel::before { content:""; position:absolute; left:8px; top:50%; width:4px; height:4px; border-radius:50%; background:#111; transform:translateY(-50%); }
+  /* 演示光标：页内画一个箭头，按编排移动 / 点击，录屏时真实鼠标不画 */
+  #cursor { position:fixed; left:0; top:0; z-index:100; pointer-events:none; display:none; will-change:transform; }
+  body.demo #cursor { display:block; }
+  #cursor svg { display:block; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
+  #cursor .ring { position:absolute; left:-10px; top:-10px; width:22px; height:22px; border-radius:50%; border:2px solid #111; opacity:0; }
+  #cursor.click .ring { animation:ring .45s ease-out; }
+  @keyframes ring { 0% { opacity:.7; transform:scale(.4); } 100% { opacity:0; transform:scale(1.7); } }
   .btn { font:inherit; font-size:11px; border:1px solid #cfcfcf; background:#fff; color:var(--text); padding:6px 10px; border-radius:2px; cursor:pointer; }
   .btn:hover { border-color:#111; }
   .btn.dark { background:#111; color:#fff; border-color:#111; }
@@ -88,9 +107,17 @@
     <div class="group open" id="g-head">
       <button>Head</button>
       <div class="body">
-        <div class="row"><label><input type="checkbox" id="chk-head" checked> Scan</label><span class="swatch" style="background:#5b93e8"></span></div>
+        <div class="row"><span class="lbl">PDT map</span>
+          <select id="sel-map" class="btn">
+            <option value="female" selected>Female mean</option>
+            <option value="mean">All-participant mean</option>
+            <option value="male">Male mean</option>
+            <option value="p20">Participant 20 · normalised</option>
+            <option value="p15">Participant 15 · normalised</option>
+          </select></div>
+        <div class="row"><label><input type="checkbox" id="chk-headsolid" checked> Head</label><span class="swatch" style="background:#e3e6ea"></span></div>
         <div class="row"><label><input type="checkbox" id="chk-pdt"> Pressure map</label><span class="swatch" style="background:#b40426"></span></div>
-        <div class="row"><label><input type="checkbox" id="chk-headsolid"> Solid</label><span class="swatch" style="background:#d9d9d9"></span></div>
+        <div class="row"><label><input type="checkbox" id="chk-head"> Scan points</label><span class="swatch" style="background:#7d8a99"></span></div>
       </div>
     </div>
 
@@ -141,6 +168,7 @@
       <div class="body" id="specs">
         <div class="kv"><span>Overall</span><b id="sp-overall">—</b></div>
         <div class="kv"><span>Lens</span><b id="sp-lens">—</b></div>
+        <div class="kv"><span>Lens blank</span><b id="sp-blank">cylindrical · base 6</b></div>
         <div class="kv"><span>Base curve</span><b id="sp-base">—</b></div>
         <div class="kv"><span>Mass · TPU 50% infill</span><b id="sp-mass">—</b></div>
         <div class="kv"><span>Seal</span><b id="sp-seal">—</b></div>
@@ -171,6 +199,7 @@
     <div id="hint">drag · scroll · keys 1–4 views · R reset</div>
     <div id="sig">DEYING CHEN</div>
     <div id="toast"></div>
+    <div id="cursor"><div class="ring"></div><svg width="18" height="26" viewBox="0 0 18 26"><path d="M1.5 1.5 L1.5 20.5 L6.2 16.2 L9.6 24 L12.6 22.7 L9.3 15 L15.8 15 Z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
     <div id="gridwrap">
       <canvas id="gridcanvas"></canvas>
       <div class="bar"><button class="btn" id="btn-grid-save">Save grid</button><button class="btn" id="btn-grid-close">Close</button></div>
@@ -190,6 +219,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { STLExporter } from "three/addons/exporters/STLExporter.js";
+import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
 
 // ---------- 场景 ----------
 const stage = document.getElementById("stage");
@@ -239,7 +269,27 @@ const lensMat = lensMats.smoke;
 const sealMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.95, metalness: 0.0 });
 // 壳是骨架之间的填充：浅灰、哑光，让黑色骨架读作结构
 const shellMat = new THREE.MeshPhysicalMaterial({ color: 0x9a9a98, roughness: 0.75, metalness: 0.0, clearcoat: 0.05 });
-const headSolidMat = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.9, metalness: 0.0 });
+// 头：半透明浅色外壳 + 每 5 mm 一道等高线（沿头高），像扫描切片；Pressure map 开着时按顶点色着色
+function makeHeadMat(vertexColors) {
+  // 压力图是数据，不走 ACES 色调映射，免得红蓝被压成粉灰；外壳本身走正常光照
+  const m = new THREE.MeshStandardMaterial({ color: vertexColors ? 0xffffff : 0xeceef1, roughness: 1.0, metalness: 0.0, envMapIntensity: vertexColors ? 0.5 : 1.0,
+    transparent: true, opacity: vertexColors ? 0.82 : 0.42, vertexColors, side: THREE.FrontSide, toneMapped: !vertexColors });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vHeadPos;")
+      .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvHeadPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vHeadPos;")
+      .replace("#include <dithering_fragment>", `#include <dithering_fragment>
+  float hs = vHeadPos.y / 5.0;
+  float hf = abs(fract(hs) - 0.5);
+  float hline = 1.0 - smoothstep(0.0, fwidth(hs) * 1.3, hf);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * 0.70, hline * ${vertexColors ? "0.3" : "0.5"});`);
+  };
+  return m;
+}
+const headSolidMat = makeHeadMat(false);
+const headPdtMat = makeHeadMat(true);
 
 // ---------- 加载 ----------
 const loader = new GLTFLoader();
@@ -279,20 +329,26 @@ function toast(msg) {
 const urlState = new URLSearchParams(location.search);
 function applyUrlStateToControls() {
   const setSel = (id, v, allowed) => { if (v && allowed.includes(v)) document.getElementById(id).value = v; };
+  setSel("sel-map", urlState.get("map"), ["female", "mean", "male", "p20", "p15"]);
   setSel("sel-pos", urlState.get("pos"), ["low", "mid", "high"]);
   setSel("sel-den", urlState.get("den"), ["sparse", "mid", "dense"]);
   setSel("tint", urlState.get("tint"), ["smoke", "mirror", "clear"]);
   setSel("finish", urlState.get("finish"), ["matte", "soft", "metal"]);
-  if (urlState.get("head") === "0") document.getElementById("chk-head").checked = false;
+  if (urlState.get("head") === "0") document.getElementById("chk-headsolid").checked = false;
+  if (urlState.get("pts") === "1") document.getElementById("chk-head").checked = true;
+  if (urlState.get("pdt") === "1") document.getElementById("chk-pdt").checked = true;
 }
 function writeUrlState() {
   if (THUMB) return;
   const p = new URLSearchParams();
+  if (document.getElementById("sel-map").value !== "female") p.set("map", document.getElementById("sel-map").value);
   p.set("pos", document.getElementById("sel-pos").value);
   p.set("den", document.getElementById("sel-den").value);
   p.set("tint", document.getElementById("tint").value);
   p.set("finish", document.getElementById("finish").value);
-  if (!document.getElementById("chk-head").checked) p.set("head", "0");
+  if (!document.getElementById("chk-headsolid").checked) p.set("head", "0");
+  if (document.getElementById("chk-head").checked) p.set("pts", "1");
+  if (document.getElementById("chk-pdt").checked) p.set("pdt", "1");
   if (currentView) p.set("view", currentView);
   history.replaceState(null, "", "?" + p.toString());
 }
@@ -311,6 +367,9 @@ const specs = await fetch("assets/specs.json").then((r) => r.json());
 const [frameScene, lensScene, sealScene, headScene, headPtsScene] = await Promise.all([loadGLB("frame"), loadGLB("lens"), loadGLB("seal"), loadGLB("head"), loadGLB("head_points")]);
 
 const frame = firstMesh(frameScene); frame.material = finishes.matte; frame.geometry.computeVertexNormals();
+// 镜片固定圈：沿镜片边缘的一圈镜框材料（标准毛坯镜片靠它包住边缘），随镜框显隐、同一表面处理
+const bead = new THREE.Mesh(new THREE.BufferGeometry(), finishes.matte);
+bead.visible = false;
 const lens = firstMesh(lensScene); lens.material = lensMat; lens.geometry.computeVertexNormals();
 const seal = firstMesh(sealScene); seal.material = sealMat; seal.geometry.computeVertexNormals();
 const headMesh = firstMesh(headScene);
@@ -323,15 +382,40 @@ headPtsScene.traverse((o) => { if (!ptsSrc && o.isPoints) ptsSrc = o; });
 const srcGeo = ptsSrc ? ptsSrc.geometry : headGeo;
 const n = srcGeo.attributes.position.count;
 const blue = new Float32Array(n * 3);
-const c = new THREE.Color(0x5b93e8);
+const c = new THREE.Color(0x7d8a99);   // 点云底色：灰蓝，不用参考视频那种亮蓝
 for (let i = 0; i < n; i++) { blue[i * 3] = c.r; blue[i * 3 + 1] = c.g; blue[i * 3 + 2] = c.b; }
-const pdt = srcGeo.attributes.color ? srcGeo.attributes.color.clone() : new THREE.BufferAttribute(blue.slice(), 3);
+let pdt = srcGeo.attributes.color ? srcGeo.attributes.color.clone() : new THREE.BufferAttribute(blue.slice(), 3);
+// PDT 压力图：assets/pdt/<key>_head.bin（10,152 顶点）与 <key>_points.bin（6 万采样点）是 sRGB 的 uint8 RGB，转成线性色给 three.js
+const pdtCache = {};
+async function loadPdtMap(key) {
+  if (pdtCache[key]) return pdtCache[key];
+  const toAttr = (buf) => {
+    const u = new Uint8Array(buf), f = new Float32Array(u.length), col = new THREE.Color();
+    for (let i = 0; i < u.length; i += 3) { col.setRGB(u[i] / 255, u[i + 1] / 255, u[i + 2] / 255, THREE.SRGBColorSpace); f[i] = col.r; f[i + 1] = col.g; f[i + 2] = col.b; }
+    return new THREE.BufferAttribute(f, 3);
+  };
+  const [h, pt] = await Promise.all([
+    fetch("assets/pdt/" + key + "_head.bin?v=" + CACHE_TAG).then((r) => r.arrayBuffer()),
+    fetch("assets/pdt/" + key + "_points.bin?v=" + CACHE_TAG).then((r) => r.arrayBuffer()),
+  ]);
+  pdtCache[key] = { head: toAttr(h), points: toAttr(pt) };
+  return pdtCache[key];
+}
+async function applyPdtMap(key) {
+  try {
+    const m = await loadPdtMap(key);
+    pdt = m.points;
+    headGeo.setAttribute("color", m.head);
+    if (document.getElementById("chk-pdt").checked) { headPointsGeo.setAttribute("color", pdt); headPointsGeo.attributes.color.needsUpdate = true; }
+  } catch (e) { console.warn("pdt map not available", key, e); }
+}
 const headPointsGeo = new THREE.BufferGeometry();
 headPointsGeo.setAttribute("position", srcGeo.attributes.position);
 headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3));
-const headPoints = new THREE.Points(headPointsGeo, new THREE.PointsMaterial({ size: 1.1, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.85 }));
+const headPoints = new THREE.Points(headPointsGeo, new THREE.PointsMaterial({ size: 0.9, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.7 }));
 const headSolid = new THREE.Mesh(headGeo, headSolidMat);
-headSolid.visible = false;
+headSolid.visible = true;
+headPoints.visible = false;
 
 // 头盔壳：已搁置，保留对象但不加载、不显示
 const shell = new THREE.Mesh(new THREE.BufferGeometry(), shellMat);
@@ -341,8 +425,8 @@ seal.visible = false;   // 密封环只作参考，默认隐藏（这个设计�
 const overlay = new THREE.Group();
 overlay.visible = false;
 root.add(overlay);
-for (const o of [frame, lens, seal, shell, headPoints, headSolid]) root.add(o);
-Object.assign(parts, { frame, lens, seal, shell, headPoints, headSolid, overlay });
+for (const o of [frame, bead, lens, seal, shell, headPoints, headSolid]) root.add(o);
+Object.assign(parts, { frame, bead, lens, seal, shell, headPoints, headSolid, overlay });
 function buildOverlay(entry) {
   while (overlay.children.length) overlay.remove(overlay.children[0]);
   if (!entry || !entry.lens_edge || !entry.edge_depths) return;
@@ -436,17 +520,17 @@ const bind = (id, fn) => document.getElementById(id).addEventListener("change", 
 const tips = {
   "sel-pos": "Where the support network anchors on the back of the head: occiput ↔ crown",
   "sel-den": "How many pressure plates seed the support network",
-  "chk-head": "Scanned head, as a point cloud", "chk-pdt": "Colour the head by pressure-discomfort threshold",
+  "chk-headsolid": "Scanned head as a translucent shell with 5 mm contours", "chk-head": "Surface sample points of the scan", "chk-pdt": "Colour the head by pressure-discomfort threshold",
   "chk-solid": "", "chk-overlay": "Lens edge sampled 400×, coloured by how deep it sits inside the frame",
   "chk-seal": "Contact ring on the skin, the seal surface", "chk-ref": "Hand-refined May 2026 version, overlaid",
   "tint": "Lens tint", "finish": "Frame finish", "btn-grid": "Render all nine variants side by side (G)", "btn-sheet": "One-page product sheet (S)",
 };
 for (const [id, t] of Object.entries(tips)) { const el = document.getElementById(id); if (el && t) el.title = t; }
-bind("chk-head", (v) => { headPoints.visible = v && !document.getElementById("chk-headsolid").checked; });
-bind("chk-headsolid", (v) => { headSolid.visible = v; headPoints.visible = !v && document.getElementById("chk-head").checked; });
+bind("chk-head", (v) => { headPoints.visible = v; });
+bind("chk-headsolid", (v) => { headSolid.visible = v; });
 bind("chk-pdt", (v) => { headPointsGeo.setAttribute("color", v ? pdt : new THREE.BufferAttribute(blue, 3)); headPointsGeo.attributes.color.needsUpdate = true;
-  headSolid.material = v ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }) : headSolidMat; });
-bind("chk-frame", (v) => frame.visible = v);
+  headSolid.material = v ? headPdtMat : headSolidMat; });
+bind("chk-frame", (v) => { frame.visible = v; bead.visible = v && bead.geometry.attributes.position !== undefined; });
 bind("chk-lens", (v) => lens.visible = v);
 bind("chk-seal", (v) => seal.visible = v);
 bind("chk-overlay", (v) => overlay.visible = v);
@@ -463,11 +547,13 @@ bind("chk-ref", async (v) => {
   refMesh.visible = v;
 });
 document.getElementById("tint").addEventListener("change", (e) => { lens.material = lensMats[e.target.value]; writeUrlState(); });
-document.getElementById("finish").addEventListener("change", (e) => { frame.material = finishes[e.target.value]; writeUrlState(); });
+document.getElementById("finish").addEventListener("change", (e) => { frame.material = finishes[e.target.value]; bead.material = frame.material; writeUrlState(); });
 // URL 里带的材质 / 头显示立即生效
 lens.material = lensMats[document.getElementById("tint").value] || lensMats.smoke;
 frame.material = finishes[document.getElementById("finish").value] || finishes.matte;
+bead.material = frame.material;
 headPoints.visible = document.getElementById("chk-head").checked;
+headSolid.visible = document.getElementById("chk-headsolid").checked;
 
 // ---------- 变体：后脑支撑位置 × 支撑疏密，预先由 Grasshopper 批量算好 ----------
 let manifest = null;
@@ -475,9 +561,15 @@ try { manifest = await fetch("assets/variants/manifest.json?t=" + Date.now()).th
 const variantCache = {};      // key -> { frame, lens, shell } 几何
 let shellWanted = true;       // Parts 里的 Helmet shell 勾选
 let currentEntry = null;
-function variantKey() {
-  return "pos-" + document.getElementById("sel-pos").value + "__den-" + document.getElementById("sel-den").value;
+function variantKeyFor(pos, den) {
+  const base = "pos-" + pos + "__den-" + den;
+  const withMap = "head-" + document.getElementById("sel-map").value + "__" + base;
+  return (manifest && manifest.variants[withMap]) ? withMap : base;
 }
+function variantKey() {
+  return variantKeyFor(document.getElementById("sel-pos").value, document.getElementById("sel-den").value);
+}
+function mapLabel() { const el = document.getElementById("sel-map"); return el.options[el.selectedIndex].textContent; }
 // 头盔壳已搁置：永远不显示
 function applyShellVisibility() { shell.visible = false; }
 function applySealReport(entry) {
@@ -505,6 +597,7 @@ function applySpecs(entry) {
   document.getElementById("sp-mass").textContent = `${entry.est_mass_g} g`;
   if (entry.lens_width_mm) document.getElementById("sp-lens").textContent = `${entry.lens_width_mm} × ${entry.lens_height_mm} × 2 mm`;
   if (entry.lens_base_curve) document.getElementById("sp-base").textContent = `${entry.lens_base_curve} · R ${entry.lens_radius_mm}`;
+  if (entry.lens_mount) document.getElementById("sp-blank").textContent = `cylindrical · base 6 · ${entry.lens_mount}`;
 }
 async function loadVariant() {
   if (!manifest) return;
@@ -517,19 +610,29 @@ async function loadVariant() {
     set = {};
     const loads = [loadGLB("variants/" + key)];
     if (entry.has_lens) loads.push(loadGLB("variants/" + key + "__lens"));
+    if (entry.has_bead) loads.push(loadGLB("variants/" + key + "__bead"));
     const results = await Promise.all(loads);
     set.frame = firstMesh(results[0]).geometry; set.frame.computeVertexNormals();
-    if (entry.has_lens) { set.lens = firstMesh(results[1]).geometry; set.lens.computeVertexNormals(); }
+    let ri = 1;
+    if (entry.has_lens) { set.lens = firstMesh(results[ri++]).geometry; set.lens.computeVertexNormals(); }
+    if (entry.has_bead) { set.bead = firstMesh(results[ri++]).geometry; set.bead.computeVertexNormals(); }
     variantCache[key] = set;
   }
   frame.geometry = set.frame;
   if (set.lens) lens.geometry = set.lens;
+  if (set.bead) { bead.geometry = set.bead; bead.visible = frame.visible; } else { bead.visible = false; }
   applySpecs(entry);
   buildOverlay(entry);
   applyShellVisibility();
   status.textContent = "up to date";
 }
 document.getElementById("sel-pos").addEventListener("change", () => { loadVariant(); writeUrlState(); });
+document.getElementById("sel-map").addEventListener("change", async () => {
+  // 换压力图：头上色跟着换，顺手打开 Pressure map 显示，再载对应镜框
+  if (!document.getElementById("chk-pdt").checked) setCheck("chk-pdt", true);
+  await applyPdtMap(document.getElementById("sel-map").value);
+  loadVariant(); writeUrlState();
+});
 document.getElementById("sel-den").addEventListener("change", () => { loadVariant(); writeUrlState(); });
 
 // 九宫格：行 = 后脑支撑位置，列 = 疏密；每格用同一台相机离屏渲染一次
@@ -558,7 +661,7 @@ async function renderGrid() {
   camera.lookAt(target);
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) {
-      const key = "pos-" + posList[i] + "__den-" + denList[j];
+      const key = variantKeyFor(posList[i], denList[j]);
       const e = manifest.variants[key];
       if (!variantCache[key]) {
         const loads = [loadGLB("variants/" + key)];
@@ -596,13 +699,13 @@ async function renderSheet() {
   gc.width = W; gc.height = H;
   const ctx = gc.getContext("2d");
   ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
-  const savedPos = camera.position.clone(), savedTarget = controls.target.clone(), savedOverlay = overlay.visible, savedHead = headPoints.visible;
+  const savedPos = camera.position.clone(), savedTarget = controls.target.clone(), savedOverlay = overlay.visible, savedHead = headPoints.visible, savedShellHead = headSolid.visible;
   const prevSize = new THREE.Vector2(); renderer.getSize(prevSize);
   overlay.visible = false;
   function shot(dirVec, w, h, lookDist, showHead) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
-    headPoints.visible = showHead;
+    headPoints.visible = showHead && savedHead; headSolid.visible = showHead && savedShellHead;
     const dir = dirVec.clone().normalize();
     camera.position.copy(target.clone().add(dir.multiplyScalar(lookDist)));
     camera.up.set(0, 1, 0); camera.lookAt(target);
@@ -629,7 +732,8 @@ async function renderSheet() {
   const key = variantKey();
   const lines = [
     ["PDT GOGGLES", ""],
-    ["Variant", key.replace("pos-", "back support ").replace("__den-", " · density ")],
+    ["PDT map", mapLabel()],
+    ["Variant", key.replace(/^head-[^_]+__/, "").replace("pos-", "back support ").replace("__den-", " · density ")],
     ["Overall", document.getElementById("sp-overall").textContent],
     ["Lens", document.getElementById("sp-lens").textContent],
     ["Base curve", document.getElementById("sp-base").textContent],
@@ -649,7 +753,7 @@ async function renderSheet() {
   // 还原
   renderer.setSize(prevSize.x, prevSize.y, false); resize();
   camera.position.copy(savedPos); controls.target.copy(savedTarget); controls.update();
-  overlay.visible = savedOverlay; headPoints.visible = savedHead;
+  overlay.visible = savedOverlay; headPoints.visible = savedHead; headSolid.visible = savedShellHead;
   document.getElementById("btn-grid-save").dataset.name = "pdt_goggles_sheet_" + key + ".png";
   document.getElementById("gridwrap").classList.add("on");
 }
@@ -659,15 +763,18 @@ document.getElementById("btn-grid-save").addEventListener("click", () => {
   const a = document.createElement("a"); a.download = document.getElementById("btn-grid-save").dataset.name || "goggles_variants_3x3.png";
   a.href = document.getElementById("gridcanvas").toDataURL("image/png"); a.click();
 });
+if (document.getElementById("sel-map").value !== "female" || document.getElementById("chk-pdt").checked) { await applyPdtMap(document.getElementById("sel-map").value); }
+if (document.getElementById("chk-pdt").checked) { headPointsGeo.setAttribute("color", pdt); headSolid.material = headPdtMat; }
 if (manifest) { await loadVariant(); } else {
   status.textContent = "no variant files — showing May 2026 output";
 }
 document.getElementById("btn-reset").addEventListener("click", () => {
-  for (const id of ["chk-head", "chk-frame", "chk-lens"]) document.getElementById(id).checked = true;
-  for (const id of ["chk-pdt", "chk-headsolid", "chk-seal", "chk-overlay"]) document.getElementById(id).checked = false;
-  headPoints.visible = true; headSolid.visible = false; frame.visible = lens.visible = true; seal.visible = false; overlay.visible = false;
+  for (const id of ["chk-headsolid", "chk-frame", "chk-lens"]) document.getElementById(id).checked = true;
+  for (const id of ["chk-pdt", "chk-head", "chk-seal", "chk-overlay"]) document.getElementById(id).checked = false;
+  headPoints.visible = false; headSolid.visible = true; headSolid.material = headSolidMat; headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3));
+  frame.visible = lens.visible = true; seal.visible = false; overlay.visible = false;
   document.getElementById("tint").value = "smoke"; lens.material = lensMats.smoke;
-  document.getElementById("finish").value = "matte"; frame.material = finishes.matte;
+  document.getElementById("finish").value = "matte"; frame.material = finishes.matte; bead.material = finishes.matte;
   headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3));
   document.getElementById("sel-pos").value = "mid"; document.getElementById("sel-den").value = "mid";
   loadVariant();
@@ -698,33 +805,114 @@ window.addEventListener("keydown", (e) => {
   if (k === "r") document.getElementById("btn-reset").click();
   else if (k === "g") document.getElementById("btn-grid").click();
   else if (k === "s") document.getElementById("btn-sheet").click();
-  else if (k === "h") { const c = document.getElementById("chk-head"); c.checked = !c.checked; c.dispatchEvent(new Event("change")); }
+  else if (k === "h") { const c = document.getElementById("chk-headsolid"); c.checked = !c.checked; c.dispatchEvent(new Event("change")); }
   else if (k === "escape") document.getElementById("gridwrap").classList.remove("on");
 });
 
-// 演示模式 ?demo=1：固定编排 25 秒，给录屏用；window.__demoDone 变 true 表示结束
+// 自定义下拉：原生 select 留着当取值（.value / change 事件照旧），界面上画按钮 + 列表
+const dropdowns = {};
+function makeDropdown(sel) {
+  const wrap = document.createElement("div"); wrap.className = "dd";
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "dd-btn";
+  const list = document.createElement("div"); list.className = "dd-list";
+  const sync = () => {
+    btn.textContent = sel.options[sel.selectedIndex].textContent;
+    [...list.children].forEach((d) => d.classList.toggle("sel", d.dataset.value === sel.value));
+  };
+  [...sel.options].forEach((o) => {
+    const d = document.createElement("div"); d.textContent = o.textContent; d.dataset.value = o.value;
+    d.addEventListener("click", (e) => { e.stopPropagation(); wrap.classList.remove("open"); if (sel.value !== o.value) { sel.value = o.value; sel.dispatchEvent(new Event("change")); } });
+    list.appendChild(d);
+  });
+  btn.addEventListener("click", (e) => { e.stopPropagation(); const open = wrap.classList.contains("open"); closeDropdowns(); if (!open) wrap.classList.add("open"); });
+  sel.addEventListener("change", sync);
+  sel.classList.add("dd-native");
+  sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(btn); wrap.appendChild(list); wrap.appendChild(sel);
+  sync();
+  dropdowns[sel.id] = { wrap, btn, list, sel, open: () => { closeDropdowns(); wrap.classList.add("open"); }, close: () => wrap.classList.remove("open") };
+  return dropdowns[sel.id];
+}
+function closeDropdowns() { Object.values(dropdowns).forEach((d) => d.wrap.classList.remove("open")); }
+document.addEventListener("click", closeDropdowns);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDropdowns(); });
+["sel-map", "sel-pos", "sel-den", "finish", "tint"].forEach((id) => makeDropdown(document.getElementById(id)));
+
+// 演示模式 ?demo=1：页内光标按真人节奏移动、点击控件，给录屏用；window.__demoDone 变 true 表示结束
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function setSelect(id, value) { const el = document.getElementById(id); el.value = value; el.dispatchEvent(new Event("change")); }
 function setCheck(id, value) { const el = document.getElementById(id); el.checked = value; el.dispatchEvent(new Event("change")); }
+const cur = { x: window.innerWidth * 0.6, y: window.innerHeight * 0.6 };
+function cursorEl() { return document.getElementById("cursor"); }
+function placeCursor() { cursorEl().style.transform = "translate(" + cur.x.toFixed(1) + "px," + cur.y.toFixed(1) + "px)"; }
+function centerOf(el, dx = 0, dy = 0) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2 + dx, y: r.top + r.height / 2 + dy }; }
+// 标签页在后台时 requestAnimationFrame 不跑，退回 setTimeout，演示编排不会卡住
+const raf = (f) => (document.hidden ? setTimeout(() => f(performance.now()), 16) : requestAnimationFrame(f));
+async function moveCursorTo(el, ms = 650, dx = 0, dy = 0) {
+  const to = centerOf(el, dx, dy), from = { x: cur.x, y: cur.y }, t0 = performance.now();
+  const dist = Math.hypot(to.x - from.x, to.y - from.y); ms = Math.max(260, Math.min(ms, 260 + dist * 1.1));
+  await new Promise((res) => {
+    function step(t) {
+      const k = Math.min(1, (t - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      cur.x = from.x + (to.x - from.x) * e; cur.y = from.y + (to.y - from.y) * e - Math.sin(k * Math.PI) * Math.min(14, dist * 0.06);
+      placeCursor(); if (k < 1) raf(step); else res();
+    }
+    raf(step);
+  });
+}
+function cursorPulse() { const c = cursorEl(); c.classList.remove("click"); void c.offsetWidth; c.classList.add("click"); }
+async function cursorClick(el, dx = 0, dy = 0) {
+  await moveCursorTo(el, 650, dx, dy); await sleep(120);
+  cursorPulse(); await sleep(110); el.click(); await sleep(240);
+}
+async function demoCheck(id) { const el = document.getElementById(id); await cursorClick(el.closest("label") || el, -6, 0); }
+async function demoPick(selectId, value) {
+  const dd = dropdowns[selectId]; if (!dd) { setSelect(selectId, value); return; }
+  await moveCursorTo(dd.btn, 650); await sleep(100);
+  cursorPulse(); await sleep(110);
+  dd.open(); await sleep(380);
+  const items = [...dd.list.children]; const target = items.findIndex((d) => d.dataset.value === value);
+  const start = Math.max(0, items.findIndex((d) => d.classList.contains("sel")));
+  const stepDir = target >= start ? 1 : -1;
+  for (let i = start; i !== target + stepDir; i += stepDir) {
+    items.forEach((d) => d.classList.remove("hover")); items[i].classList.add("hover");
+    await moveCursorTo(items[i], 220, -10, 0); await sleep(i === target ? 260 : 150);
+  }
+  items.forEach((d) => d.classList.remove("hover"));
+  cursorPulse(); await sleep(110);
+  items[target].click(); await sleep(300);
+}
+window.__demoPick = demoPick; window.__moveCursorTo = moveCursorTo; window.__demoCheck = demoCheck;
+async function demoView(name) { await cursorClick(document.querySelector('#views button[data-view="' + name + '"]')); }
 async function runDemo() {
   document.body.classList.add("demo");
   window.__demoDone = false;
+  closeDropdowns();
   document.getElementById("btn-reset").click();
+  if (document.getElementById("chk-pdt").checked) setCheck("chk-pdt", false);
+  if (document.getElementById("sel-map").value !== "female") setSelect("sel-map", "female");
+  placeCursor();
   controls.autoRotate = true; controls.autoRotateSpeed = 1.2;
-  await sleep(3000);
+  await sleep(2600);
   controls.autoRotate = false;
-  setView("front", true); await sleep(1800);
-  setCheck("chk-head", false); await sleep(1200);
-  setSelect("sel-den", "dense"); await sleep(2200);
-  setSelect("sel-den", "sparse"); await sleep(2200);
-  setSelect("sel-pos", "high"); await sleep(2200);
-  setSelect("sel-pos", "mid"); setSelect("sel-den", "mid"); await sleep(1800);
-  setView("side", true); await sleep(1000);
-  setCheck("chk-overlay", true); await sleep(2600);
-  setCheck("chk-overlay", false);
-  setView("iso", true); setSelect("tint", "mirror"); await sleep(2200);
-  setSelect("tint", "smoke"); setCheck("chk-head", true);
-  controls.autoRotate = true; controls.autoRotateSpeed = 1.0; await sleep(3500);
+  // 1 头：打开压力图 → 换受试者，镜框跟着重算
+  await demoCheck("chk-pdt"); await sleep(1300);
+  await demoPick("sel-map", "p20"); await sleep(2300);
+  await demoPick("sel-map", "male"); await sleep(2300);
+  // 2 结构：疏密、后脑支撑位置
+  await demoPick("sel-den", "dense"); await sleep(2000);
+  await demoPick("sel-pos", "high"); await sleep(2000);
+  // 3 视角：正视看镜片，侧视开气密检查
+  await demoView("front"); await sleep(1500);
+  await demoView("side"); await sleep(500);
+  await demoCheck("chk-overlay"); await sleep(2400);
+  await demoCheck("chk-overlay");
+  // 4 零件：镜面镜片
+  await demoView("iso"); await sleep(400);
+  await demoPick("tint", "mirror"); await sleep(1800);
+  // 收尾：关压力图回到蓝色点云，自转
+  await demoCheck("chk-pdt"); await sleep(400);
+  await moveCursorTo(document.getElementById("stage"), 700, 0, 120);
+  controls.autoRotate = true; controls.autoRotateSpeed = 1.0; await sleep(3200);
   controls.autoRotate = false;
   window.__demoDone = true;
   document.body.classList.remove("demo");
@@ -743,7 +931,15 @@ function exportStl(mesh, filename) {
   const blob = new Blob([data], { type: "application/octet-stream" });
   const a = document.createElement("a"); a.download = filename; a.href = URL.createObjectURL(blob); a.click();
 }
-document.getElementById("btn-export").addEventListener("click", () => exportStl(frame, "pdt_goggles_frame_" + variantKey() + ".stl"));
+document.getElementById("btn-export").addEventListener("click", () => {
+  // 打印件 = 镜框 + 镜片固定圈，一起导出
+  if (bead.visible && bead.geometry.attributes.position) {
+    const g1 = frame.geometry.clone().toNonIndexed(), g2 = bead.geometry.clone().toNonIndexed();
+    for (const g of [g1, g2]) { for (const k of Object.keys(g.attributes)) if (k !== "position") g.deleteAttribute(k); }
+    const merged = BufferGeometryUtils.mergeGeometries([g1, g2], false);
+    exportStl(new THREE.Mesh(merged, frame.material), "pdt_goggles_frame_" + variantKey() + ".stl");
+  } else exportStl(frame, "pdt_goggles_frame_" + variantKey() + ".stl");
+});
 document.getElementById("btn-export-lens").addEventListener("click", () => exportStl(lens, "pdt_goggles_lens_" + variantKey() + ".stl"));
 
 // ---------- 尺寸与循环 ----------
