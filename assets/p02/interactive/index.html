@@ -730,7 +730,13 @@ async function runDemo() {
   document.body.classList.remove("demo");
 }
 window.__demo = runDemo;
-if (urlState.get("demo") === "1") { setTimeout(runDemo, 800); }
+if (urlState.get("demo") === "1") {
+  // 录屏用：标题改成纯 ASCII 便于按窗口标题抓取；页面 load 后固定延时再开跑，录屏可按静止段对齐起点
+  document.title = "PDT Goggles Demo";
+  const delay = Number(urlState.get("delay") || 800);
+  const kick = () => setTimeout(runDemo, delay);
+  if (document.readyState === "complete") kick(); else window.addEventListener("load", kick);
+}
 function exportStl(mesh, filename) {
   const exporter = new STLExporter();
   const data = exporter.parse(mesh, { binary: true });
