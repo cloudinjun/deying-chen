@@ -19,6 +19,29 @@
   "vmax": 20.0,
   "table": "TUDELFT PDT_Mean_nonNorm"
  },
+ "scales": {
+  "female": {
+   "vmin": 0.0,
+   "vmax": 20.0
+  },
+  "mean": {
+   "vmin": 0.0,
+   "vmax": 20.0
+  },
+  "male": {
+   "vmin": 0.0,
+   "vmax": 20.0
+  },
+  "p20": {
+   "vmin": 0.0,
+   "vmax": 7.62
+  },
+  "p15": {
+   "vmin": 0.0,
+   "vmax": 10.07
+  }
+ },
+ "unit": "kPa",
  "head_vertices": 10152,
  "points": 60000
 }
