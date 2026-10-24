@@ -57,6 +57,9 @@
   #toast { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); background:#111; color:#fff; font-size:11px; padding:6px 12px; border-radius:2px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.on { opacity:1; }
   body.demo #hint, body.demo #sig, body.demo #views, body.demo #toast { display:none; }
+  /* 缩略图模式（作品集页 ?thumb=1）：只留三维视图，面板与控件全部隐藏 */
+  body.thumb #panel, body.thumb #hint, body.thumb #views, body.thumb #readout, body.thumb #toast { display:none; }
+  body.thumb #app { grid-template-columns:1fr; grid-template-rows:1fr; }
   @media (max-width:760px) {
     #app { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
     #panel { max-height:44vh; border-right:0; border-bottom:1px solid var(--line); }
@@ -283,6 +286,7 @@ function applyUrlStateToControls() {
   if (urlState.get("head") === "0") document.getElementById("chk-head").checked = false;
 }
 function writeUrlState() {
+  if (THUMB) return;
   const p = new URLSearchParams();
   p.set("pos", document.getElementById("sel-pos").value);
   p.set("den", document.getElementById("sel-den").value);
@@ -294,6 +298,9 @@ function writeUrlState() {
 }
 let currentView = "iso";
 applyUrlStateToControls();
+// 缩略图模式：作品集页的小 iframe 不接收指针，这里只做缓慢自转、不写 URL
+const THUMB = urlState.get("thumb") === "1";
+if (THUMB) { document.body.classList.add("thumb"); }
 function firstMesh(obj) {
   let found = null;
   obj.traverse((o) => { if (!found && o.isMesh) found = o; });
@@ -741,6 +748,7 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 resize();
+if (THUMB) { controls.autoRotate = true; controls.autoRotateSpeed = 0.8; controls.enabled = false; }
 renderer.setAnimationLoop(() => { stepTween(performance.now()); controls.update(); renderer.render(scene, camera); });
 window.__viewer = { setView, parts, camera, controls, renderer, scene };
 </script>
