@@ -40,6 +40,9 @@
   /* 演示光标：页内画一个箭头，按编排移动 / 点击，录屏时真实鼠标不画 */
   #cursor { position:fixed; left:0; top:0; z-index:100; pointer-events:none; display:none; will-change:transform; }
   body.demo #cursor { display:block; }
+  body.demo.nocursor #cursor { display:none; }
+  #sp-seal.pulse { animation:pulse 1.2s ease-in-out 2; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
   #cursor svg { display:block; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
   #cursor .ring { position:absolute; left:-10px; top:-10px; width:22px; height:22px; border-radius:50%; border:2px solid #111; opacity:0; }
   #cursor.click .ring { animation:ring .45s ease-out; }
@@ -74,6 +77,11 @@
   #legend { position:absolute; left:14px; bottom:12px; display:flex; align-items:center; gap:8px; font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
   #legend .bar { width:120px; height:6px; border-radius:1px; background:linear-gradient(90deg,#3b4cc0,#8db0fe,#dddddd,#f49a7b,#b40426); }
   #legend b { color:var(--text); font-weight:500; }
+  #legend .sub, .tag .sub, #probe .sub { color:var(--muted); font-size:10px; margin-left:6px; }
+  .lv { font-weight:600; } .lv-low { color:#3b4cc0; } .lv-mid { color:#7a7a7a; } .lv-high { color:#b40426; }
+  #probe .lv-low { color:#9db8ff; } #probe .lv-mid { color:#d8d8d8; } #probe .lv-high { color:#ff9a86; }
+  #legend .lv-low, #legend .lv-high { font-weight:600; }
+  #probe .sub { color:#bbb; }
   #probe { position:absolute; left:0; top:0; pointer-events:none; display:none; background:#111; color:#fff; font-size:11px; padding:3px 7px; border-radius:2px; white-space:nowrap; transform:translate(14px,-28px); font-variant-numeric:tabular-nums; }
   #probe.on { display:block; }
   #tags, #probetags { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
@@ -84,6 +92,7 @@
   body.thumb #caption { display:none; }
   .tag { position:absolute; left:0; top:0; font-size:10.5px; color:var(--text); background:rgba(255,255,255,.88); border:1px solid var(--line); padding:1px 5px; border-radius:2px; white-space:nowrap; transform:translate(10px,-50%); font-variant-numeric:tabular-nums; }
   .tag.off { display:none; }
+  .tag.zone { font-size:11.5px; padding:2px 7px; }
   body.thumb #legend, body.thumb #tags, body.thumb #probe { display:none; }
   /* 加载进度：顶部一条细线 + 左栏在加载完成前不可点 */
   #progress { position:absolute; top:0; left:0; height:2px; width:0; background:#111; transition:width .2s; z-index:5; }
@@ -209,7 +218,7 @@
     </div>
     <div id="progress"></div>
     <div id="sig">DEYING CHEN</div>
-    <div id="legend"><span id="lg-min">0</span><span class="bar"></span><span><b id="lg-max">20</b> kPa</span></div>
+    <div id="legend"><span class="lv-low">low</span><span class="bar"></span><span class="lv-high">high</span><span class="sub">pressure tolerance</span></div>
     <div id="probe"></div>
     <div id="tags"></div>
     <div id="probetags"></div>
@@ -425,10 +434,13 @@ function pdtScale(key) {
   const sc = pdtMeta && ((pdtMeta.scales || {})[key] || pdtMeta.scale);
   return sc || { vmin: 0, vmax: 20 };
 }
+function tolWord(v) {
+  const sc = pdtScale(document.getElementById("sel-map").value);
+  const r = (v - sc.vmin) / Math.max(1e-6, sc.vmax - sc.vmin);
+  return r >= 0.66 ? "high" : (r >= 0.33 ? "mid" : "low");
+}
+function tolHTML(v) { const w = tolWord(v); return '<span class="lv lv-' + w + '">' + w + "</span>"; }
 function updateLegend(key) {
-  const sc = pdtScale(key);
-  document.getElementById("lg-min").textContent = Math.round(sc.vmin);
-  document.getElementById("lg-max").textContent = sc.vmax >= 15 ? Math.round(sc.vmax) : sc.vmax.toFixed(1);
   document.getElementById("legend").style.display = document.getElementById("chk-pdt").checked ? "" : "none";
 }
 async function applyPdtMap(key) {
@@ -659,23 +671,49 @@ const headWipe = new THREE.Mesh(headGeo, headPdtMat); headWipe.visible = false; 
 const probeGroup = new THREE.Group(); root.add(probeGroup);
 const probeLayer = document.getElementById("probetags");
 let probeTags = [];
-function pickProbeVertices(count) {
+// 分析阶段的读数点：五官地标按名字标（nose 6.1 kPa），再加头部分区的均值（crown 16.8 kPa），比散点数字好读
+const LANDMARK_NAMES = { anchor_nose: "nose", anchor_leye: "left eye", anchor_reye: "right eye", anchor_lear: "left ear", anchor_rear: "right ear", anchor_cheeks: "cheek", anchor_chin: "chin", anchor_backanchor: "back of head" };
+const ZONES = [   // 模型坐标：脸朝 -Y，z 向上；每区 [名字, 判定函数]
+  ["crown", (x, y, z) => z > 110],
+  ["forehead", (x, y, z) => z > 55 && z <= 110 && y < -60 && Math.abs(x) < 55],
+  ["temple", (x, y, z) => Math.abs(x) > 62 && z > 15 && z < 95 && y > -80 && y < 10],
+  ["back of head", (x, y, z) => y > 30 && z > 0 && z <= 110],
+  ["cheek", (x, y, z) => z > -25 && z < 25 && y < -85 && Math.abs(x) > 28 && Math.abs(x) < 70],
+  ["nose", (x, y, z) => Math.abs(x) < 14 && y < -112 && z > -5 && z < 40],
+  ["chin", (x, y, z) => z < -25 && z > -70 && y < -95 && Math.abs(x) < 35],
+];
+function pickProbeVertices(count, entry) {
   const pos = headGeo.attributes.position, nrm = headGeo.attributes.normal, N = pos.count;
-  let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const picked = [];
-  let tries = 0;
-  while (picked.length < count && tries < 4000) {
-    tries++;
-    const i = Math.floor(rnd() * N);
-    const z = pos.getZ(i), y = pos.getY(i);
-    if (z < -40) continue;                                            // 颈部以下不测
-    if (pdtValues && !(pdtValues[i] > 0)) continue;                  // 没数据的点不测
-    const q = new THREE.Vector3(pos.getX(i), y, z);
-    const nv = new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
-    if (nv.dot(new THREE.Vector3(-0.5, -0.75, 0.3).normalize()) < -0.2) continue;   // 背对主机位的不测（iso 相机在左前上）
-    let ok = true;
-    for (const o of picked) if (o.q.distanceTo(q) < 34) { ok = false; break; }
-    if (ok) picked.push({ i, q, nv });
+  const vtx = (vi) => ({ i: vi, q: new THREE.Vector3(pos.getX(vi), pos.getY(vi), pos.getZ(vi)), nv: new THREE.Vector3(nrm.getX(vi), nrm.getY(vi), nrm.getZ(vi)) });
+  // 五官地标
+  if (entry) for (const k of Object.keys(entry)) if (k.startsWith("anchor_")) for (const xyz of (entry[k] || [])) {
+    const vi = headTree.nearest(new THREE.Vector3(xyz[0], xyz[1], xyz[2]));
+    if (vi < 0) continue;
+    const it = vtx(vi); it.landmark = true; it.name = LANDMARK_NAMES[k] || k.replace("anchor_", ""); it.value = pdtValues ? pdtValues[vi] : null;
+    picked.push(it);
+  }
+  // 分区均值：区内有数据顶点的平均 PDT，标在离区心最近的顶点上
+  if (pdtValues) for (const [name, test] of ZONES) {
+    let sum = 0, cnt = 0; const c = new THREE.Vector3();
+    for (let i = 0; i < N; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (pdtValues[i] > 0 && test(x, y, z)) { sum += pdtValues[i]; cnt++; c.x += x; c.y += y; c.z += z; }
+    }
+    if (cnt < 20) continue;
+    c.multiplyScalar(1 / cnt);
+    // 区心投回头皮：区内离区心最近、且朝向主机位的顶点
+    let best = -1, bd = Infinity; const view = new THREE.Vector3(-0.5, -0.75, 0.3).normalize();
+    for (let i = 0; i < N; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (!(pdtValues[i] > 0) || !test(x, y, z)) continue;
+      const facing = nrm.getX(i) * view.x + nrm.getY(i) * view.y + nrm.getZ(i) * view.z;
+      const d = (x - c.x) ** 2 + (y - c.y) ** 2 + (z - c.z) ** 2 + (facing < 0 ? 1e6 : 0);
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best < 0) continue;
+    const it = vtx(best); it.landmark = false; it.name = name; it.value = sum / cnt; it.zone = true;
+    picked.push(it);
   }
   return picked;
 }
@@ -684,7 +722,7 @@ function clearProbes() {
   for (const t of probeTags) t.el.remove();
   probeTags = [];
 }
-for (const m of Object.values(finishes)) {
+function applyGrowHook(m) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uRing = genU.uRing; sh.uniforms.uBranch = genU.uBranch;
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec2 aT;\nvarying vec2 vT;")
@@ -694,6 +732,21 @@ for (const m of Object.values(finishes)) {
   };
   m.customProgramCacheKey = () => "grow";
   m.needsUpdate = true;
+}
+for (const m of Object.values(finishes)) applyGrowHook(m);
+// 融合前的管件拼接（GH 里 MeshJoin 之后、TriRemesh / QuadRemesh / SubD 之前）：解释环节里先长出它，再交叉淡化成融合后的镜框
+const rawMat = new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: 0.55, metalness: 0.05, clearcoat: 0.15, clearcoatRoughness: 0.4, transparent: true, opacity: 1.0 });
+applyGrowHook(rawMat);
+const rawMesh = new THREE.Mesh(new THREE.BufferGeometry(), rawMat); rawMesh.visible = false; root.add(rawMesh);
+const rawCache = {};
+async function ensureRaw(key, entry) {
+  if (!entry || !entry.has_raw) return null;
+  if (rawCache[key]) return rawCache[key];
+  try {
+    const sc = await loadGLB("variants/" + key + "__raw");
+    const g = firstMesh(sc).geometry; g.computeVertexNormals(); assignGrowth(g, entry);
+    rawCache[key] = g; return g;
+  } catch (e) { console.warn("raw mesh not available", key, e); return null; }
 }
 // 给几何体算 aT：最近的轨迹采样点（眼圈 400 点 / 支撑路径各 25 点），20 mm 网格分桶
 function assignGrowth(geo, entry) {
@@ -765,13 +818,18 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, scan: 1800, probe: 2000, wipe: 1600, ringPath: 1500, ringTube: 1500, plate: 1000, line: 1300, tube: 2600, fuse: 900, lens: 1000 }
+  const T = mode === "intro" ? { hold: 1, scan: 1800, probe: 2000, wipe: 1600, ringPath: 1500, ringTube: 1500, plate: 1000, line: 1300, tube: 2600, fuse: 1600, lens: 1000 }
           : mode === "full" ? { hold: 0, ringPath: 600, ringTube: 700, plate: 500, line: 700, tube: 1200, fuse: 0, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 300, plate: 250, line: 350, tube: 600, fuse: 0, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
   const plates = anchorItems.filter((it) => it.sprite);
   const lines = branchLines.slice();
   const longest = lines.reduce((a, b) => (a && a.pts.length >= b.pts.length ? a : b), null);
+  // 解释环节：先载融合前的管件拼接；成功的话管件生长用它，之后交叉淡化成融合后的镜框
+  let rawGeo = null;
+  if (mode === "intro") { rawGeo = await ensureRaw(variantKey(), currentEntry); if (!alive()) return; }
+  const frameWas = frame.visible, beadWas = bead.visible;
+  if (rawGeo) { rawMesh.geometry = rawGeo; rawMat.color.copy(frame.material.color); rawMat.opacity = 1; rawMesh.visible = true; frame.visible = false; bead.visible = false; }
   // 起始：全部收起
   for (const it of plates) it.sprite.scale.set(0.001, 0.001, 1);
   for (const l of lines) l.geo.instanceCount = 0;
@@ -786,73 +844,88 @@ async function playGeneration(mode) {
     const ptsWas = headPoints.visible, shellWas = headSolid.visible;
     headSolid.material = headSolidMat; headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3)); headPointsGeo.attributes.color.needsUpdate = true;
     headSolid.visible = false; headPoints.visible = true; headPointsGeo.setDrawRange(0, 0);
-    say("1 · Analyse — head scan: 60,000 surface points");
+    say("1 · Analyse — scan the head");
     await animate(T.scan, (e, k) => { headPointsGeo.setDrawRange(0, Math.round(n * k)); }, alive); if (!alive()) return;
     headSolid.visible = shellWas; await animate(500, () => {}, alive); if (!alive()) return;
     headPoints.visible = ptsWas; headPointsGeo.setDrawRange(0, Infinity);
     // 测点
     clearProbes();
-    const probes = pickProbeVertices(22);
+    const probes = pickProbeVertices(24, currentEntry);
     for (const pr of probes) {
       const sp = new THREE.Sprite(markMat); sp.position.copy(pr.q).addScaledVector(pr.nv, 1.5); sp.scale.set(0.001, 0.001, 1); probeGroup.add(sp);
-      const el = document.createElement("div"); el.className = "tag"; el.textContent = pdtValues ? pdtValues[pr.i].toFixed(1) + " kPa" : ""; el.style.display = "none"; probeLayer.appendChild(el);
-      probeTags.push({ el, sp, pos: sp.position.clone(), nrm: pr.nv });
+      const el = document.createElement("div"); el.className = "tag" + (pr.zone ? " zone" : ""); el.innerHTML = (pr.zone && pr.value > 0) ? pr.name + " · " + tolHTML(pr.value) : pr.name; el.style.display = "none"; probeLayer.appendChild(el);
+      probeTags.push({ el, sp, pos: sp.position.clone(), nrm: pr.nv, landmark: pr.landmark, zone: !!pr.zone });
     }
-    say("1 · Analyse — pressure-discomfort threshold measured point by point (kPa)");
+    say("1 · Analyse — how much pressure each region can take: high, mid, low");
+    const zoneIdx = probes.map((pr, i) => (pr.zone ? i : -1)).filter((i) => i >= 0);
     await animate(T.probe, (e) => {
-      probes.forEach((pr, i) => { const k = Math.max(0, Math.min(1, (e * (probes.length + 1) - i))); probeGroup.children[i].scale.set(3.5 * k, 3.5 * k, 1); probeTags[i].el.style.display = k > 0.6 ? "" : "none"; });
+      zoneIdx.forEach((i, j) => { const k = Math.max(0, Math.min(1, (e * (zoneIdx.length + 1) - j))); probeGroup.children[i].scale.set(4.5 * k, 4.5 * k, 1); probeTags[i].el.style.display = k > 0.6 ? "" : "none"; });
     }, alive); if (!alive()) return;
     await animate(600, () => {}, alive); if (!alive()) return;
     // 擦入
     if (pdtOn) {
-      say("1 · Analyse — interpolated into a continuous PDT map, kPa per vertex");
+      say("1 · Analyse — the whole head as one pressure-tolerance map: red takes pressure, blue does not");
       wipePlane.constant = -200; headWipe.visible = true;
-      await animate(T.wipe, (e) => { wipePlane.constant = -200 + 420 * e; probeTags.forEach((t) => { t.el.style.opacity = String(1 - e); }); }, alive); if (!alive()) return;
+      await animate(T.wipe, (e) => { wipePlane.constant = -200 + 420 * e; probeTags.forEach((t) => { if (t.zone) t.el.style.opacity = String(1 - e); }); }, alive); if (!alive()) return;
       headSolid.material = headPdtMat; headPointsGeo.setAttribute("color", pdt); headPointsGeo.attributes.color.needsUpdate = true;
       headWipe.visible = false; wipePlane.constant = 1000;
     }
-    clearProbes();
+    for (const t of probeTags) if (t.zone) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }   // 分区词退场；五官点此时还没出现
     await animate(400, () => {}, alive); if (!alive()) return;
   }
   // 二、定点：五官地标 → 支撑落点（耐受最高）→ 眼圈路径从鼻梁种子向两侧扩散 → 眼圈管
   if (T.hold) {
-    say("2 · Points — facial landmarks: nose, eyes, ears, cheeks, chin, back anchor");
-    landmarkGroup.visible = true; const lm = landmarkGroup.children;
-    await animate(T.plate, (e) => { lm.forEach((sp, i) => { const k = Math.max(0, Math.min(1, (e * (lm.length + 1) - i))); sp.scale.set(3.5 * k, 3.5 * k, 1); }); }, alive);
+    say("2 · Points — find the face landmarks: nose, eyes, ears, cheeks, chin, back of head");
+    const lm = probeTags.filter((t) => t.landmark);
+    await animate(T.plate, (e, k) => { lm.forEach((t, i) => { const ph = Math.max(0, Math.min(1, (k * (lm.length + 1) - i))); t.sp.scale.set(3.5 * ph, 3.5 * ph, 1); t.el.style.display = ph > 0.6 ? "" : "none"; }); }, alive);
     if (!alive()) return;
+    await animate(600, () => {}, alive); if (!alive()) return;
+    // 非地标的测点退场，地标留着
+    for (const t of probeTags) if (!t.landmark) t.sp.scale.set(0.001, 0.001, 1);
   }
-  say("2 · Points — support anchors: the most pressure-tolerant spots on the scalp");
+  say("2 · Points — choose support points where the head takes pressure best");
   await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
   if (!alive()) return;
   tagLayer.style.opacity = "";
-  say("2 · Points — eye-ring path spreads from the nose bridge: shortest path over the mesh, cost weighted by the PDT map");
+  say("2 · Points — the eye-ring path grows out from the nose bridge, staying on skin that can take pressure");
   await animate(T.ringPath, (e) => { for (const r of ringLines) r.geo.instanceCount = Math.round(r.n * e); }, alive);
   if (!alive()) return;
-  say("2 · Points — ring tube: profile sections lofted along the path, the seal against the face");
+  say("2 · Points — the path becomes a tube: this is the seal against the face");
   await animate(T.ringTube, (e) => { genU.uRing.value = e * 1.02; }, alive);
   if (!alive()) return;
-  // 三、凝结成实体：支撑路径 → 三角截面沿路径放样 → 融合 → 镜片
-  say("3 · Solidify — support paths: shortest paths over the mesh, anchor to anchor and anchor to ring");
+  // 三、凝结成实体：支撑路径 → 三角截面沿路径放样 → 融合 → 镜片（五官名退场，只留支撑落点）
+  for (const t of probeTags) if (t.landmark) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }
+  say("3 · Solidify — support paths: the shortest routes across the scalp between the points and the ring");
   await animate(T.line, (e) => { for (const l of lines) l.geo.instanceCount = Math.max(0, Math.round(l.n * e)); }, alive);
   if (!alive()) return;
-  say("3 · Solidify — triangular profile placed along every path and lofted; sections swell near the anchors");
+  say("3 · Solidify — a triangular profile runs along every path and becomes a member, thicker near the support points");
   await animate(T.tube, (e, k) => { genU.uBranch.value = e * 1.02; if (longest) placeProfile(longest.pts, e); }, alive);
   profileMarker.visible = false;
   if (!alive()) return;
   genU.uRing.value = 2; genU.uBranch.value = 2;
-  if (T.fuse) { say("3 · Solidify — members fused, remeshed, converted to SubD"); await animate(T.fuse, () => {}, alive); if (!alive()) return; }
+  if (rawGeo) {
+    // 融合 + 平滑：融合前的拼接体淡出，融合后的镜框（Dendro 体积并 → QuadRemesh → SubD）淡入
+    say("3 · Solidify — the members fuse into one body and are smoothed");
+    const fm = frame.material; const wasT = fm.transparent; fm.transparent = true; fm.opacity = 0; frame.visible = frameWas; bead.visible = beadWas;
+    await animate(T.fuse || 1200, (e) => { rawMat.opacity = 1 - e; fm.opacity = e; }, alive);
+    rawMesh.visible = false; fm.opacity = 1; fm.transparent = wasT;
+    if (!alive()) return;
+    await animate(500, () => {}, alive); if (!alive()) return;
+  } else if (T.fuse) { say("3 · Solidify — the members fuse into one body and are smoothed"); await animate(T.fuse, () => {}, alive); if (!alive()) return; }
   // 6 镜片
-  say("3 · Solidify — standard base-6 lens mounted per head, held by a printed bead; seal check");
+  say("3 · Solidify — a standard lens is fitted and held by a printed rim; the seal is checked");
   lens.visible = lensWasVisible;
   await animate(T.lens, (e) => { lens.position.y = -60 * (1 - e); }, alive);
   if (!alive()) return;
   lens.position.y = 0;
-  if (mode === "intro") { await animate(900, () => {}, alive); caption(""); }
+  if (mode === "intro") { await animate(900, () => {}, alive); caption(""); clearProbes(); }
   landmarkGroup.visible = false;
 }
 function cancelGeneration() {
   genToken++;
   genU.uRing.value = 2; genU.uBranch.value = 2; profileMarker.visible = false; caption(""); landmarkGroup.visible = false;
+  rawMesh.visible = false; for (const m of Object.values(finishes)) { m.opacity = 1; m.transparent = false; }
+  frame.visible = document.getElementById("chk-frame").checked; bead.visible = frame.visible && !!bead.geometry.attributes.position;
   clearProbes(); headWipe.visible = false; wipePlane.constant = 1000; headPointsGeo.setDrawRange(0, Infinity);
   headSolid.visible = document.getElementById("chk-headsolid").checked; headPoints.visible = document.getElementById("chk-head").checked;
   if (document.getElementById("chk-pdt").checked) { headSolid.material = headPdtMat; headPointsGeo.setAttribute("color", pdt); headPointsGeo.attributes.color.needsUpdate = true; }
@@ -1058,7 +1131,7 @@ function probeAt(clientX, clientY) {
   const v = pdtValues[best];
   const sr = stage.getBoundingClientRect();
   probeEl.style.left = (clientX - sr.left) + "px"; probeEl.style.top = (clientY - sr.top) + "px";
-  probeEl.textContent = v > 0 ? v.toFixed(1) + " kPa" : "no data";
+  probeEl.innerHTML = v > 0 ? tolHTML(v) + ' <span class="sub">' + v.toFixed(1) + " kPa</span>" : "no data";
   probeEl.classList.add("on");
   return v;
 }
@@ -1177,7 +1250,7 @@ function refreshAnchorTags() {
   for (const it of anchorItems) {
     if (!it.el) continue;
     const v = (pdtValues && it.vi >= 0) ? pdtValues[it.vi] : null;
-    it.el.textContent = (v !== null && v > 0) ? v.toFixed(1) + " kPa" : "";
+    it.el.innerHTML = (v !== null && v > 0) ? tolHTML(v) : "";
     it.el.classList.toggle("off", !show || !it.el.textContent);
   }
 }
@@ -1347,39 +1420,47 @@ async function demoProbeSweep() {
 }
 async function demoView(name) { await cursorClick(document.querySelector('#views button[data-view="' + name + '"]')); }
 async function runDemo() {
-  document.body.classList.add("demo");
+  // 五幕叙事：数据 → 生成逻辑 → 检查 → 换人 / 换参数 → 成品。前三幕没有光标，第四幕起「换你来调」
+  document.body.classList.add("demo", "nocursor");
   window.__demoDone = false;
   closeDropdowns();
   document.getElementById("btn-reset").click();
   if (document.getElementById("sel-map").value !== "female") setSelect("sel-map", "female");
   placeCursor();
-  // 开头：解释环节——典型案例按管线顺序生成一遍（眼圈路径 → 眼圈管 → 落点 → 支撑路径 → 沿路径放样 → 融合 → 镜片），带字幕，镜头缓慢自转
-  controls.autoRotate = true; controls.autoRotateSpeed = 0.7;
+  // 第一、二幕：解释环节（分析 → 定点 / 环扩散 → 凝结成实体），相机缓慢环绕
+  setView("iso", false);
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.6;
   await sleep(300);
   cancelGeneration(); await playGeneration("intro");
-  await sleep(500);
   controls.autoRotate = false;
-  // 1 头：光标扫过头皮读 PDT 数值 → 换受试者，镜框跟着重算
-  await demoProbeSweep(); await sleep(600);
-  await demoPick("sel-map", "p20"); await sleep(3000);
-  await demoPick("sel-map", "male"); await sleep(3000);
-  // 2 结构：疏密、后脑支撑位置
-  await demoPick("sel-den", "dense"); await sleep(2800);
-  await demoPick("sel-pos", "high"); await sleep(2800);
-  // 3 视角：正视看镜片，侧视开气密检查
-  await demoView("front"); await sleep(1500);
-  await demoView("side"); await sleep(500);
-  await demoCheck("chk-overlay"); await sleep(2400);
-  await demoCheck("chk-overlay");
-  // 4 零件：镜面镜片
-  await demoView("iso"); await sleep(400);
-  await demoPick("tint", "mirror"); await sleep(1800);
-  // 收尾：光标让开，自转
-  await moveCursorTo(document.getElementById("stage"), 700, 0, 160);
-  controls.autoRotate = true; controls.autoRotateSpeed = 1.0; await sleep(3200);
+  // 第三幕：检查——侧视，气密环点亮，PASS
+  caption("Does it seal? Does the lens clear the face?");
+  setView("side", true); await sleep(1200);
+  setCheck("chk-overlay", true); document.getElementById("sp-seal").classList.add("pulse"); await sleep(2800);
+  setCheck("chk-overlay", false); document.getElementById("sp-seal").classList.remove("pulse");
+  caption("");
+  // 第四幕：换人、换参数——光标出现
+  document.body.classList.remove("nocursor");
+  setView("iso", true); await sleep(900);
+  caption("Another person's tolerance map: the supports move");
+  await demoPick("sel-map", "p20"); await sleep(3200);
+  await demoPick("sel-map", "male"); await sleep(3200);
+  caption("Same logic at any density or support position");
+  await demoPick("sel-den", "dense"); await sleep(3000);
+  await demoPick("sel-pos", "high"); await sleep(3000);
+  caption("");
+  // 第五幕：成品——正视，镜面镜片，环绕收尾
+  caption("Printed frame, standard lens, one per head");
+  await demoView("front"); await sleep(1200);
+  await demoPick("tint", "mirror"); await sleep(1600);
+  document.body.classList.add("nocursor");
+  setView("iso", true); await sleep(800);
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.9; await sleep(4000);
   controls.autoRotate = false;
+  caption("");
+  await sleep(400);
   window.__demoDone = true;
-  document.body.classList.remove("demo");
+  document.body.classList.remove("demo", "nocursor");
 }
 window.__demo = runDemo;
 if (urlState.get("demo") === "1") {
