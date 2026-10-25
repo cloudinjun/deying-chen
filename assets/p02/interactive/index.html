@@ -809,7 +809,7 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, scan: 1800, probe: 2000, wipe: 1600, ringPath: 1500, ringTube: 1400, plate: 1000, line: 1300, tube: 2400, fuse: 2000, lens: 1000 }
+  const T = mode === "intro" ? { hold: 1, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
           : mode === "full" ? { hold: 0, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
@@ -818,7 +818,7 @@ async function playGeneration(mode) {
   const longest = lines.reduce((a, b) => (a && a.pts.length >= b.pts.length ? a : b), null);
   // 线框截面：眼圈一组、支撑路径一组，按进度逐个出现；实体最后统一扫出
   buildSections(currentEntry);
-  wireRing.geometry.instanceCount = 0; wireBranch.geometry.instanceCount = 0; wireMat.opacity = 0.9; wireGroup.visible = true;
+  wireRing.geometry.instanceCount = 0; wireBranch.geometry.instanceCount = 0; wireMat.opacity = 0.85; wireGroup.visible = true;
   // 起始：全部收起
   for (const it of plates) it.sprite.scale.set(0.001, 0.001, 1);
   for (const l of lines) l.geo.instanceCount = 0;
@@ -874,28 +874,38 @@ async function playGeneration(mode) {
   await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
   if (!alive()) return;
   tagLayer.style.opacity = "";
-  say("2 · Points — the eye-ring path grows out from the nose bridge, staying on tolerant skin");
-  await animate(T.ringPath, (e) => { for (const r of ringLines) r.geo.instanceCount = Math.round(r.n * e); }, alive);
+  say("2 · Points — from the nose bridge a front spreads over the face; the cheapest route around the eyes becomes the ring path");
+  {
+    const seed = ringPts.length ? headTree.nearest(new THREE.Vector3(ringPts[0][0], ringPts[0][1], ringPts[0][2])) : -1;
+    setFront(geodesicField([seed]));
+    const halfLen = ringLines.length ? ringLines[0].pts.reduce((acc, q, i, arr) => acc + (i ? Math.hypot(q[0] - arr[i - 1][0], q[1] - arr[i - 1][1], q[2] - arr[i - 1][2]) : 0), 0) : 250;
+    await animate(T.ringPath, (e) => { const R = (halfLen + 40) * e; frontMat.uniforms.uR.value = R; for (const r of ringLines) r.geo.instanceCount = segsWithin(r.pts, R); }, alive);
+    hideFront();
+  }
   if (!alive()) return;
-  say("2 · Points — a profile is placed along the path every few millimetres: this ring is the seal against the face");
+  say("2 · Points — the profile is swept along the path into a ring: this is the seal against the face");
   await animate(T.ringTube, (e) => { wireRing.geometry.instanceCount = Math.round(wireRingN * e); }, alive);
   if (!alive()) return;
   // 三、凝结成实体：支撑路径 → 三角截面沿路径放样 → 融合 → 镜片（五官名退场，只留支撑落点）
   for (const t of probeTags) if (t.landmark) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }
-  say("3 · Solidify — support paths: the shortest routes across the scalp between the points and the ring");
-  await animate(T.line, (e) => { for (const l of lines) l.geo.instanceCount = Math.max(0, Math.round(l.n * e)); }, alive);
+  say("3 · Solidify — from every support point a front spreads over the scalp; the shortest routes to the ring and to each other become the paths");
+  {
+    setFront(geodesicField(plates.map((it) => it.vi)));
+    const maxLen = lines.reduce((m, l) => Math.max(m, l.pts.reduce((acc, q, i, arr) => acc + (i ? Math.hypot(q[0] - arr[i - 1][0], q[1] - arr[i - 1][1], q[2] - arr[i - 1][2]) : 0), 0)), 100);
+    await animate(T.line, (e) => { const R = (maxLen + 30) * e; frontMat.uniforms.uR.value = R; for (const l of lines) l.geo.instanceCount = segsWithin(l.pts, R); }, alive);
+    hideFront();
+  }
   if (!alive()) return;
-  say("3 · Solidify — the same triangular profile is placed along every path, larger near the support points");
-  await animate(T.tube, (e, k) => { wireBranch.geometry.instanceCount = Math.round(wireBranchN * e); if (longest) placeProfile(longest.pts, e); }, alive);
-  profileMarker.visible = false;
+  say("3 · Solidify — the same triangular profile is swept along every path, larger near the support points");
+  await animate(T.tube, (e) => { wireBranch.geometry.instanceCount = Math.round(wireBranchN * e); }, alive);
   if (!alive()) return;
   // 实体沿路径扫出（眼圈先、支撑后），线框同时淡掉 = 放样成实体、融合、平滑
   say("3 · Solidify — the profiles are lofted into members, fused into one body and smoothed");
   await animate(T.fuse || 1200, (e) => {
     genU.uRing.value = Math.min(1.02, e * 1.6); genU.uBranch.value = Math.max(-0.01, (e - 0.25) / 0.75) * 1.02;
-    wireMat.opacity = 0.9 * (1 - e);
+    wireMat.opacity = 0.85 * (1 - e);
   }, alive);
-  genU.uRing.value = 2; genU.uBranch.value = 2; wireGroup.visible = false; wireMat.opacity = 0.9;
+  genU.uRing.value = 2; genU.uBranch.value = 2; wireGroup.visible = false; wireMat.opacity = 0.85;
   if (!alive()) return;
   await animate(400, () => {}, alive); if (!alive()) return;
   // 6 镜片
@@ -910,7 +920,7 @@ async function playGeneration(mode) {
 function cancelGeneration() {
   genToken++;
   genU.uRing.value = 2; genU.uBranch.value = 2; profileMarker.visible = false; caption(""); landmarkGroup.visible = false;
-  wireGroup.visible = false; wireMat.opacity = 0.9;
+  wireGroup.visible = false; wireMat.opacity = 0.85; hideFront();
   frame.visible = document.getElementById("chk-frame").checked; bead.visible = frame.visible && !!bead.geometry.attributes.position;
   clearProbes(); headWipe.visible = false; wipePlane.constant = 1000; headPointsGeo.setDrawRange(0, Infinity);
   headSolid.visible = document.getElementById("chk-headsolid").checked; headPoints.visible = document.getElementById("chk-head").checked;
@@ -1215,7 +1225,7 @@ function buildAnchors(entry) {
       seq.forEach((q, i) => { arr[i * 3] = q.x; arr[i * 3 + 1] = q.y; arr[i * 3 + 2] = q.z; });
       const g = new LineGeometry(); g.setPositions(arr);
       const ln = new Line2(g, branchMat); ln.computeLineDistances();
-      anchorGroup.add(ln); ringLines.push({ line: ln, n: seq.length - 1, geo: g });
+      anchorGroup.add(ln); ringLines.push({ line: ln, n: seq.length - 1, geo: g, pts: seq.map((q) => [q.x, q.y, q.z]) });
     }
   }
   // 面部地标（定点）：鼻、眼、耳、颊、下巴、后脑锚点——只在解释环节里出现
@@ -1229,8 +1239,45 @@ function buildAnchors(entry) {
   refreshAnchorTags();
 }
 let ringLines = [], ringPts = [];
+// ---------- 扩散波前（她的路径都是头皮网格上的最短路） ----------
+// 邻接表：从头网格的三角面建边；无索引几何按坐标合并顶点
+const headAdj = (() => {
+  const pos = headGeo.attributes.position, N = pos.count, adj = Array.from({ length: N }, () => []);
+  const idx = headGeo.index ? headGeo.index.array : null;
+  const addEdge = (a, b) => { if (a === b) return; const d = Math.hypot(pos.getX(a) - pos.getX(b), pos.getY(a) - pos.getY(b), pos.getZ(a) - pos.getZ(b)); adj[a].push(b, d); adj[b].push(a, d); };
+  if (idx) { for (let i = 0; i < idx.length; i += 3) { addEdge(idx[i], idx[i + 1]); addEdge(idx[i + 1], idx[i + 2]); addEdge(idx[i + 2], idx[i]); } }
+  else { for (let i = 0; i < N; i += 3) { addEdge(i, i + 1); addEdge(i + 1, i + 2); addEdge(i + 2, i); } }
+  return adj;
+})();
+function geodesicField(sources) {
+  // 多源 Dijkstra，二叉堆；返回每个头顶点到最近源的沿网格距离
+  const N = headAdj.length, dist = new Float64Array(N).fill(Infinity);   // 必须 64 位：32 位存储会被 64 位候选值无限「改进」，死循环
+  const heap = []; const push = (d, v) => { heap.push([d, v]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  for (const v of sources) if (v >= 0) { dist[v] = 0; push(0, v); }
+  while (heap.length) {
+    const [d, v] = pop(); if (d > dist[v]) continue;
+    const a = headAdj[v];
+    for (let k = 0; k < a.length; k += 2) { const nd = d + a[k + 1]; if (nd < dist[a[k]]) { dist[a[k]] = nd; push(nd, a[k]); } }
+  }
+  return dist;
+}
+// 波前显示：头网格再叠一层，按顶点到源的距离画出扩散带（带内淡色填充，前沿深色一圈）
+const frontGeo = headGeo.clone();
+frontGeo.setAttribute("aDist", new THREE.BufferAttribute(new Float32Array(headGeo.attributes.position.count), 1));
+const frontMat = new THREE.ShaderMaterial({
+  uniforms: { uR: { value: -1 }, uBand: { value: 5.0 }, uColor: { value: new THREE.Color(0x111111) } },
+  vertexShader: "attribute float aDist; varying float vD; void main(){ vD = aDist; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: "uniform float uR; uniform float uBand; uniform vec3 uColor; varying float vD; void main(){ float band = 1.0 - smoothstep(0.0, uBand, abs(vD - uR)); float inside = step(vD, uR) * 0.12; float a = max(inside, band * 0.7); if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }",
+  transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const frontMesh = new THREE.Mesh(frontGeo, frontMat); frontMesh.visible = false; frontMesh.renderOrder = 2; root.add(frontMesh);
+function setFront(field) { frontGeo.getAttribute("aDist").array.set(Float32Array.from(field)); frontGeo.getAttribute("aDist").needsUpdate = true; frontMat.uniforms.uR.value = -1; frontMesh.visible = true; }
+function hideFront() { frontMesh.visible = false; frontMat.uniforms.uR.value = -1; }
+window.__geo = geodesicField; window.__wire = buildSections;
+// 折线按累计长度画到 R：返回应显示的段数
+function segsWithin(poly, R) { let cum = 0; for (let i = 1; i < poly.length; i++) { cum += Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1], poly[i][2] - poly[i - 1][2]); if (cum > R) return i - 1; } return poly.length - 1; }
 // 线框截面（GridForm 的「沿轨迹布截面」）：所有截面按路径进度排序放进一个 LineSegments2，instanceCount 推进就是逐个出现
-const wireMat = new LineMaterial({ color: 0x222222, linewidth: 1.4, transparent: true, opacity: 0.9, worldUnits: false });
+const wireMat = new LineMaterial({ color: 0x222222, linewidth: 1.1, transparent: true, opacity: 0.85, worldUnits: false });
 wireMat.resolution.set(renderer.domElement.width, renderer.domElement.height);
 const wireGroup = new THREE.Group(); wireGroup.visible = false; root.add(wireGroup);
 const wireRing = new LineSegments2(new LineSegmentsGeometry(), wireMat); wireGroup.add(wireRing);
@@ -1240,42 +1287,44 @@ function sectionTriangle(pnt, tan, r) {
   // 她的截面：底边贴皮肤、尖朝外，底 r × 高 r；底边方向 = 切线 × 皮肤法线
   const vi = headTree.nearest(pnt); const nrm = vi >= 0 ? headTree.normalAt(vi) : new THREE.Vector3(0, 0, 1);
   const bin = new THREE.Vector3().crossVectors(tan, nrm).normalize();
-  const p1 = pnt.clone().addScaledVector(bin, -r / 2), p2 = pnt.clone().addScaledVector(bin, r / 2), p3 = pnt.clone().addScaledVector(nrm, r);
-  return [p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z, p3.x, p3.y, p3.z, p1.x, p1.y, p1.z];
+  return [pnt.clone().addScaledVector(bin, -r / 2), pnt.clone().addScaledVector(bin, r / 2), pnt.clone().addScaledVector(nrm, r)];
 }
-function sectionsAlong(poly, closedRing, spacing, radiusAt) {
-  // 沿折线每 spacing mm 放一个截面，返回 [{t, segs}]，t = 归一化弧长
+function wireTubeAlong(poly, closedRing, spacing, radiusAt, tOf) {
+  // 三角管线框：每 spacing 一个截面，截面三边 + 到前一截面的三条纵棱；返回 [{t, segs(36 个数)}]
   const pts = poly.map((q) => new THREE.Vector3(q[0], q[1], q[2]));
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
   const L = cum[cum.length - 1]; if (L < 1e-6) return [];
-  const out = [];
-  for (let d = closedRing ? 0 : spacing * 0.5; d <= L - (closedRing ? spacing * 0.5 : spacing * 0.5); d += spacing) {
+  const secs = [];
+  for (let d = 0; d <= L + 1e-6; d += spacing) {
     let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
-    const u = (d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
+    const u = Math.min(1, (d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]));
     const pnt = pts[i - 1].clone().lerp(pts[i], u), tan = pts[i].clone().sub(pts[i - 1]).normalize();
-    out.push({ t: d / L, segs: sectionTriangle(pnt, tan, radiusAt(d, L)) });
+    secs.push({ d, tri: sectionTriangle(pnt, tan, radiusAt(d, L)) });
+  }
+  const out = [];
+  for (let k = 0; k < secs.length; k++) {
+    const c = secs[k].tri, pcs = k > 0 ? secs[k - 1].tri : (closedRing ? secs[secs.length - 1].tri : c);
+    const segs = [];
+    const push = (p, q) => segs.push(p.x, p.y, p.z, q.x, q.y, q.z);
+    push(c[0], c[1]); push(c[1], c[2]); push(c[2], c[0]);
+    push(pcs[0], c[0]); push(pcs[1], c[1]); push(pcs[2], c[2]);
+    out.push({ t: tOf(secs[k].d, L), segs });
   }
   return out;
 }
 function buildSections(entry) {
   if (!entry) return;
-  // 眼圈：从鼻梁种子向两侧的 t（和实体 aT 一致），半径 9
-  const ringSecs = [];
-  if (ringPts.length > 10) {
-    const secs = sectionsAlong(ringPts, true, 6, () => 9);
-    for (const sc of secs) { sc.t = Math.min(sc.t, 1 - sc.t) * 2; ringSecs.push(sc); }
-  }
+  // 眼圈：连续三角管线框，从鼻梁种子向两侧生长（t = 离种子的环向距离），半径 9
+  let ringSecs = [];
+  if (ringPts.length > 10) ringSecs = wireTubeAlong(ringPts, true, 6, () => 9, (d, L) => Math.min(d, L - d) / (L / 2));
   ringSecs.sort((a, b) => a.t - b.t);
-  // 支撑路径：半径 8 → 15，离路径端点（吸引点）60 mm 内放大
+  // 支撑路径：半径 8 → 15，离路径端点（吸引点）60 mm 内放大；按归一化弧长排序，各条同时生长
   const brSecs = [];
-  for (const l of branchLines) {
-    const secs = sectionsAlong(l.pts, false, 6, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); });
-    brSecs.push(...secs);
-  }
+  for (const l of branchLines) brSecs.push(...wireTubeAlong(l.pts, false, 6, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); }, (d, L) => d / L));
   brSecs.sort((a, b) => a.t - b.t);
-  const flat = (arr) => { const f = new Float32Array(arr.length * 18); arr.forEach((sc, i) => f.set(sc.segs, i * 18)); return f; };
-  wireRing.geometry.dispose(); wireRing.geometry = new LineSegmentsGeometry(); if (ringSecs.length) wireRing.geometry.setPositions(flat(ringSecs)); wireRingN = ringSecs.length * 3;
-  wireBranch.geometry.dispose(); wireBranch.geometry = new LineSegmentsGeometry(); if (brSecs.length) wireBranch.geometry.setPositions(flat(brSecs)); wireBranchN = brSecs.length * 3;
+  const flat = (arr) => { const f = new Float32Array(arr.length * 36); arr.forEach((sc, i) => f.set(sc.segs, i * 36)); return f; };
+  wireRing.geometry.dispose(); wireRing.geometry = new LineSegmentsGeometry(); if (ringSecs.length) wireRing.geometry.setPositions(flat(ringSecs)); wireRingN = ringSecs.length * 6;
+  wireBranch.geometry.dispose(); wireBranch.geometry = new LineSegmentsGeometry(); if (brSecs.length) wireBranch.geometry.setPositions(flat(brSecs)); wireBranchN = brSecs.length * 6;
   wireRing.computeLineDistances(); wireBranch.computeLineDistances();
 }
 const landmarkGroup = new THREE.Group(); root.add(landmarkGroup);
