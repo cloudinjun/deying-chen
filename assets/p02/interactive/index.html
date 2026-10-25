@@ -852,7 +852,7 @@ async function playGeneration(mode) {
     if (!alive()) return;
     await animate(700, () => {}, alive); if (!alive()) return;
     // 1c 数据分析：压力耐受图从头顶擦入，再按分区给出 tolerant / moderate / sensitive
-    for (const t of lm) t.el.style.display = "none";                 // 五官名收起，点留着
+    for (const t of lm) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }   // 五官点和名字一起退场，下一组点出来时不打架
     if (pdtOn) {
       say("1 · Analyse — colour it by pressure tolerance: red tolerant, blue sensitive");
       wipePlane.constant = -200; headWipe.visible = true;
@@ -1345,11 +1345,19 @@ function placeTags() {
   // 测点标签（分析阶段）
   if (probeTags.length) {
     const r = renderer.domElement.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    const placed = [];   // 已放标签的屏幕框，重叠的往下错开
     for (const t of probeTags) {
       if (t.el.style.display === "none") continue;
       _wp.copy(t.pos); root.localToWorld(_wp); _wp.project(camera);
-      t.el.style.left = ((_wp.x + 1) / 2 * r.width + (r.left - sr.left)) + "px";
-      t.el.style.top = ((1 - _wp.y) / 2 * r.height + (r.top - sr.top)) + "px";
+      let x = (_wp.x + 1) / 2 * r.width + (r.left - sr.left), y = (1 - _wp.y) / 2 * r.height + (r.top - sr.top);
+      const w = t.el.offsetWidth + 10, h = t.el.offsetHeight + 4;
+      for (let k = 0; k < 6; k++) {
+        const hit = placed.find((b) => x + 10 < b.x + b.w && x + 10 + w > b.x && y - h / 2 < b.y + b.h && y + h / 2 > b.y);
+        if (!hit) break;
+        y = hit.y + hit.h + h / 2 + 2;
+      }
+      placed.push({ x: x + 10, y: y - h / 2, w, h });
+      t.el.style.left = x + "px"; t.el.style.top = y + "px";
     }
   }
   if (!anchorItems.length) return;
