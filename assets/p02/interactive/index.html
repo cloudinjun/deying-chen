@@ -78,9 +78,9 @@
   #legend .bar { width:120px; height:6px; border-radius:1px; background:linear-gradient(90deg,#3b4cc0,#8db0fe,#dddddd,#f49a7b,#b40426); }
   #legend b { color:var(--text); font-weight:500; }
   #legend .sub, .tag .sub, #probe .sub { color:var(--muted); font-size:10px; margin-left:6px; }
-  .lv { font-weight:600; } .lv-low { color:#3b4cc0; } .lv-mid { color:#7a7a7a; } .lv-high { color:#b40426; }
-  #probe .lv-low { color:#9db8ff; } #probe .lv-mid { color:#d8d8d8; } #probe .lv-high { color:#ff9a86; }
-  #legend .lv-low, #legend .lv-high { font-weight:600; }
+  .lv { font-weight:600; } .lv-sensitive { color:#3b4cc0; } .lv-moderate { color:#7a7a7a; } .lv-tolerant { color:#b40426; }
+  #probe .lv-sensitive { color:#9db8ff; } #probe .lv-moderate { color:#d8d8d8; } #probe .lv-tolerant { color:#ff9a86; }
+  #legend .lv-sensitive, #legend .lv-tolerant { font-weight:600; }
   #probe .sub { color:#bbb; }
   #probe { position:absolute; left:0; top:0; pointer-events:none; display:none; background:#111; color:#fff; font-size:11px; padding:3px 7px; border-radius:2px; white-space:nowrap; transform:translate(14px,-28px); font-variant-numeric:tabular-nums; }
   #probe.on { display:block; }
@@ -218,7 +218,7 @@
     </div>
     <div id="progress"></div>
     <div id="sig">DEYING CHEN</div>
-    <div id="legend"><span class="lv-low">low</span><span class="bar"></span><span class="lv-high">high</span><span class="sub">pressure tolerance</span></div>
+    <div id="legend"><span class="lv-sensitive">sensitive</span><span class="bar"></span><span class="lv-tolerant">tolerant</span></div>
     <div id="probe"></div>
     <div id="tags"></div>
     <div id="probetags"></div>
@@ -248,6 +248,8 @@ import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js"
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 
 // ---------- 场景 ----------
 const stage = document.getElementById("stage");
@@ -437,7 +439,7 @@ function pdtScale(key) {
 function tolWord(v) {
   const sc = pdtScale(document.getElementById("sel-map").value);
   const r = (v - sc.vmin) / Math.max(1e-6, sc.vmax - sc.vmin);
-  return r >= 0.66 ? "high" : (r >= 0.33 ? "mid" : "low");
+  return r >= 0.66 ? "tolerant" : (r >= 0.33 ? "moderate" : "sensitive");
 }
 function tolHTML(v) { const w = tolWord(v); return '<span class="lv lv-' + w + '">' + w + "</span>"; }
 function updateLegend(key) {
@@ -734,20 +736,6 @@ function applyGrowHook(m) {
   m.needsUpdate = true;
 }
 for (const m of Object.values(finishes)) applyGrowHook(m);
-// 融合前的管件拼接（GH 里 MeshJoin 之后、TriRemesh / QuadRemesh / SubD 之前）：解释环节里先长出它，再交叉淡化成融合后的镜框
-const rawMat = new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: 0.55, metalness: 0.05, clearcoat: 0.15, clearcoatRoughness: 0.4, transparent: true, opacity: 1.0 });
-applyGrowHook(rawMat);
-const rawMesh = new THREE.Mesh(new THREE.BufferGeometry(), rawMat); rawMesh.visible = false; root.add(rawMesh);
-const rawCache = {};
-async function ensureRaw(key, entry) {
-  if (!entry || !entry.has_raw) return null;
-  if (rawCache[key]) return rawCache[key];
-  try {
-    const sc = await loadGLB("variants/" + key + "__raw");
-    const g = firstMesh(sc).geometry; g.computeVertexNormals(); assignGrowth(g, entry);
-    rawCache[key] = g; return g;
-  } catch (e) { console.warn("raw mesh not available", key, e); return null; }
-}
 // 给几何体算 aT：最近的轨迹采样点（眼圈 400 点 / 支撑路径各 25 点），20 mm 网格分桶
 function assignGrowth(geo, entry) {
   if (!geo || !geo.attributes.position || geo.getAttribute("aT")) return;
@@ -818,18 +806,16 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, scan: 1800, probe: 2000, wipe: 1600, ringPath: 1500, ringTube: 1500, plate: 1000, line: 1300, tube: 2600, fuse: 1600, lens: 1000 }
-          : mode === "full" ? { hold: 0, ringPath: 600, ringTube: 700, plate: 500, line: 700, tube: 1200, fuse: 0, lens: 500 }
-          : { hold: 0, ringPath: 250, ringTube: 300, plate: 250, line: 350, tube: 600, fuse: 0, lens: 300 };
+  const T = mode === "intro" ? { hold: 1, scan: 1800, probe: 2000, wipe: 1600, ringPath: 1500, ringTube: 1400, plate: 1000, line: 1300, tube: 2400, fuse: 2000, lens: 1000 }
+          : mode === "full" ? { hold: 0, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
+          : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
   const plates = anchorItems.filter((it) => it.sprite);
   const lines = branchLines.slice();
   const longest = lines.reduce((a, b) => (a && a.pts.length >= b.pts.length ? a : b), null);
-  // 解释环节：先载融合前的管件拼接；成功的话管件生长用它，之后交叉淡化成融合后的镜框
-  let rawGeo = null;
-  if (mode === "intro") { rawGeo = await ensureRaw(variantKey(), currentEntry); if (!alive()) return; }
-  const frameWas = frame.visible, beadWas = bead.visible;
-  if (rawGeo) { rawMesh.geometry = rawGeo; rawMat.color.copy(frame.material.color); rawMat.opacity = 1; rawMesh.visible = true; frame.visible = false; bead.visible = false; }
+  // 线框截面：眼圈一组、支撑路径一组，按进度逐个出现；实体最后统一扫出
+  buildSections(currentEntry);
+  wireRing.geometry.instanceCount = 0; wireBranch.geometry.instanceCount = 0; wireMat.opacity = 0.9; wireGroup.visible = true;
   // 起始：全部收起
   for (const it of plates) it.sprite.scale.set(0.001, 0.001, 1);
   for (const l of lines) l.geo.instanceCount = 0;
@@ -856,7 +842,7 @@ async function playGeneration(mode) {
       const el = document.createElement("div"); el.className = "tag" + (pr.zone ? " zone" : ""); el.innerHTML = (pr.zone && pr.value > 0) ? pr.name + " · " + tolHTML(pr.value) : pr.name; el.style.display = "none"; probeLayer.appendChild(el);
       probeTags.push({ el, sp, pos: sp.position.clone(), nrm: pr.nv, landmark: pr.landmark, zone: !!pr.zone });
     }
-    say("1 · Analyse — how much pressure each region can take: high, mid, low");
+    say("1 · Analyse — how each region reacts to pressure: tolerant, moderate, sensitive");
     const zoneIdx = probes.map((pr, i) => (pr.zone ? i : -1)).filter((i) => i >= 0);
     await animate(T.probe, (e) => {
       zoneIdx.forEach((i, j) => { const k = Math.max(0, Math.min(1, (e * (zoneIdx.length + 1) - j))); probeGroup.children[i].scale.set(4.5 * k, 4.5 * k, 1); probeTags[i].el.style.display = k > 0.6 ? "" : "none"; });
@@ -864,7 +850,7 @@ async function playGeneration(mode) {
     await animate(600, () => {}, alive); if (!alive()) return;
     // 擦入
     if (pdtOn) {
-      say("1 · Analyse — the whole head as one pressure-tolerance map: red takes pressure, blue does not");
+      say("1 · Analyse — the whole head as one map: red tolerant, blue sensitive");
       wipePlane.constant = -200; headWipe.visible = true;
       await animate(T.wipe, (e) => { wipePlane.constant = -200 + 420 * e; probeTags.forEach((t) => { if (t.zone) t.el.style.opacity = String(1 - e); }); }, alive); if (!alive()) return;
       headSolid.material = headPdtMat; headPointsGeo.setAttribute("color", pdt); headPointsGeo.attributes.color.needsUpdate = true;
@@ -883,35 +869,34 @@ async function playGeneration(mode) {
     // 非地标的测点退场，地标留着
     for (const t of probeTags) if (!t.landmark) t.sp.scale.set(0.001, 0.001, 1);
   }
-  say("2 · Points — choose support points where the head takes pressure best");
+  say("2 · Points — choose support points on the most tolerant skin");
   await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
   if (!alive()) return;
   tagLayer.style.opacity = "";
-  say("2 · Points — the eye-ring path grows out from the nose bridge, staying on skin that can take pressure");
+  say("2 · Points — the eye-ring path grows out from the nose bridge, staying on tolerant skin");
   await animate(T.ringPath, (e) => { for (const r of ringLines) r.geo.instanceCount = Math.round(r.n * e); }, alive);
   if (!alive()) return;
-  say("2 · Points — the path becomes a tube: this is the seal against the face");
-  await animate(T.ringTube, (e) => { genU.uRing.value = e * 1.02; }, alive);
+  say("2 · Points — a profile is placed along the path every few millimetres: this ring is the seal against the face");
+  await animate(T.ringTube, (e) => { wireRing.geometry.instanceCount = Math.round(wireRingN * e); }, alive);
   if (!alive()) return;
   // 三、凝结成实体：支撑路径 → 三角截面沿路径放样 → 融合 → 镜片（五官名退场，只留支撑落点）
   for (const t of probeTags) if (t.landmark) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }
   say("3 · Solidify — support paths: the shortest routes across the scalp between the points and the ring");
   await animate(T.line, (e) => { for (const l of lines) l.geo.instanceCount = Math.max(0, Math.round(l.n * e)); }, alive);
   if (!alive()) return;
-  say("3 · Solidify — a triangular profile runs along every path and becomes a member, thicker near the support points");
-  await animate(T.tube, (e, k) => { genU.uBranch.value = e * 1.02; if (longest) placeProfile(longest.pts, e); }, alive);
+  say("3 · Solidify — the same triangular profile is placed along every path, larger near the support points");
+  await animate(T.tube, (e, k) => { wireBranch.geometry.instanceCount = Math.round(wireBranchN * e); if (longest) placeProfile(longest.pts, e); }, alive);
   profileMarker.visible = false;
   if (!alive()) return;
-  genU.uRing.value = 2; genU.uBranch.value = 2;
-  if (rawGeo) {
-    // 融合 + 平滑：融合前的拼接体淡出，融合后的镜框（Dendro 体积并 → QuadRemesh → SubD）淡入
-    say("3 · Solidify — the members fuse into one body and are smoothed");
-    const fm = frame.material; const wasT = fm.transparent; fm.transparent = true; fm.opacity = 0; frame.visible = frameWas; bead.visible = beadWas;
-    await animate(T.fuse || 1200, (e) => { rawMat.opacity = 1 - e; fm.opacity = e; }, alive);
-    rawMesh.visible = false; fm.opacity = 1; fm.transparent = wasT;
-    if (!alive()) return;
-    await animate(500, () => {}, alive); if (!alive()) return;
-  } else if (T.fuse) { say("3 · Solidify — the members fuse into one body and are smoothed"); await animate(T.fuse, () => {}, alive); if (!alive()) return; }
+  // 实体沿路径扫出（眼圈先、支撑后），线框同时淡掉 = 放样成实体、融合、平滑
+  say("3 · Solidify — the profiles are lofted into members, fused into one body and smoothed");
+  await animate(T.fuse || 1200, (e) => {
+    genU.uRing.value = Math.min(1.02, e * 1.6); genU.uBranch.value = Math.max(-0.01, (e - 0.25) / 0.75) * 1.02;
+    wireMat.opacity = 0.9 * (1 - e);
+  }, alive);
+  genU.uRing.value = 2; genU.uBranch.value = 2; wireGroup.visible = false; wireMat.opacity = 0.9;
+  if (!alive()) return;
+  await animate(400, () => {}, alive); if (!alive()) return;
   // 6 镜片
   say("3 · Solidify — a standard lens is fitted and held by a printed rim; the seal is checked");
   lens.visible = lensWasVisible;
@@ -924,7 +909,7 @@ async function playGeneration(mode) {
 function cancelGeneration() {
   genToken++;
   genU.uRing.value = 2; genU.uBranch.value = 2; profileMarker.visible = false; caption(""); landmarkGroup.visible = false;
-  rawMesh.visible = false; for (const m of Object.values(finishes)) { m.opacity = 1; m.transparent = false; }
+  wireGroup.visible = false; wireMat.opacity = 0.9;
   frame.visible = document.getElementById("chk-frame").checked; bead.visible = frame.visible && !!bead.geometry.attributes.position;
   clearProbes(); headWipe.visible = false; wipePlane.constant = 1000; headPointsGeo.setDrawRange(0, Infinity);
   headSolid.visible = document.getElementById("chk-headsolid").checked; headPoints.visible = document.getElementById("chk-head").checked;
@@ -1241,6 +1226,55 @@ function buildAnchors(entry) {
   refreshAnchorTags();
 }
 let ringLines = [], ringPts = [];
+// 线框截面（GridForm 的「沿轨迹布截面」）：所有截面按路径进度排序放进一个 LineSegments2，instanceCount 推进就是逐个出现
+const wireMat = new LineMaterial({ color: 0x222222, linewidth: 1.4, transparent: true, opacity: 0.9, worldUnits: false });
+wireMat.resolution.set(renderer.domElement.width, renderer.domElement.height);
+const wireGroup = new THREE.Group(); wireGroup.visible = false; root.add(wireGroup);
+const wireRing = new LineSegments2(new LineSegmentsGeometry(), wireMat); wireGroup.add(wireRing);
+const wireBranch = new LineSegments2(new LineSegmentsGeometry(), wireMat); wireGroup.add(wireBranch);
+let wireRingN = 0, wireBranchN = 0;
+function sectionTriangle(pnt, tan, r) {
+  // 她的截面：底边贴皮肤、尖朝外，底 r × 高 r；底边方向 = 切线 × 皮肤法线
+  const vi = headTree.nearest(pnt); const nrm = vi >= 0 ? headTree.normalAt(vi) : new THREE.Vector3(0, 0, 1);
+  const bin = new THREE.Vector3().crossVectors(tan, nrm).normalize();
+  const p1 = pnt.clone().addScaledVector(bin, -r / 2), p2 = pnt.clone().addScaledVector(bin, r / 2), p3 = pnt.clone().addScaledVector(nrm, r);
+  return [p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z, p3.x, p3.y, p3.z, p1.x, p1.y, p1.z];
+}
+function sectionsAlong(poly, closedRing, spacing, radiusAt) {
+  // 沿折线每 spacing mm 放一个截面，返回 [{t, segs}]，t = 归一化弧长
+  const pts = poly.map((q) => new THREE.Vector3(q[0], q[1], q[2]));
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+  const L = cum[cum.length - 1]; if (L < 1e-6) return [];
+  const out = [];
+  for (let d = closedRing ? 0 : spacing * 0.5; d <= L - (closedRing ? spacing * 0.5 : spacing * 0.5); d += spacing) {
+    let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+    const u = (d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
+    const pnt = pts[i - 1].clone().lerp(pts[i], u), tan = pts[i].clone().sub(pts[i - 1]).normalize();
+    out.push({ t: d / L, segs: sectionTriangle(pnt, tan, radiusAt(d, L)) });
+  }
+  return out;
+}
+function buildSections(entry) {
+  if (!entry) return;
+  // 眼圈：从鼻梁种子向两侧的 t（和实体 aT 一致），半径 9
+  const ringSecs = [];
+  if (ringPts.length > 10) {
+    const secs = sectionsAlong(ringPts, true, 6, () => 9);
+    for (const sc of secs) { sc.t = Math.min(sc.t, 1 - sc.t) * 2; ringSecs.push(sc); }
+  }
+  ringSecs.sort((a, b) => a.t - b.t);
+  // 支撑路径：半径 8 → 15，离路径端点（吸引点）60 mm 内放大
+  const brSecs = [];
+  for (const l of branchLines) {
+    const secs = sectionsAlong(l.pts, false, 6, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); });
+    brSecs.push(...secs);
+  }
+  brSecs.sort((a, b) => a.t - b.t);
+  const flat = (arr) => { const f = new Float32Array(arr.length * 18); arr.forEach((sc, i) => f.set(sc.segs, i * 18)); return f; };
+  wireRing.geometry.dispose(); wireRing.geometry = new LineSegmentsGeometry(); if (ringSecs.length) wireRing.geometry.setPositions(flat(ringSecs)); wireRingN = ringSecs.length * 3;
+  wireBranch.geometry.dispose(); wireBranch.geometry = new LineSegmentsGeometry(); if (brSecs.length) wireBranch.geometry.setPositions(flat(brSecs)); wireBranchN = brSecs.length * 3;
+  wireRing.computeLineDistances(); wireBranch.computeLineDistances();
+}
 const landmarkGroup = new THREE.Group(); root.add(landmarkGroup);
 let branchLines = [];
 const branchMat = new LineMaterial({ color: 0x111111, linewidth: 2.5, transparent: true, opacity: 0.75, depthTest: true, worldUnits: false });
@@ -1494,6 +1528,7 @@ function resize() {
   camera.aspect = w / h; camera.updateProjectionMatrix();
   branchMat.resolution.set(renderer.domElement.width, renderer.domElement.height);   // 粗线按像素算宽，要跟画布尺寸
   profileMarker.material.resolution.set(renderer.domElement.width, renderer.domElement.height);
+  wireMat.resolution.set(renderer.domElement.width, renderer.domElement.height);
 }
 window.addEventListener("resize", resize);
 resize();
