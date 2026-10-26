@@ -829,8 +829,8 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, sel: 1600, rank: 500, pick: 220, pickOut: 300, scan: 1100, probe: 1200, wipe: 1000, ringPath: 1300, ringTube: 900, plate: 600, line: 1300, tube: 1300, fuse: 1200, lens: 700 }
-          : mode === "full" ? { hold: 0, rank: 400, pick: 180, pickOut: 250, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
+  const T = mode === "intro" ? { hold: 1, sel: 1600, rank: 500, search: 460, pick: 220, pickOut: 300, scan: 1100, probe: 1200, wipe: 1000, ringPath: 1300, ringTube: 900, plate: 600, line: 1300, tube: 1300, fuse: 1200, lens: 700 }
+          : mode === "full" ? { hold: 0, rank: 400, search: 240, pick: 180, pickOut: 250, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
   const plates = anchorItems.filter((it) => it.sprite);
@@ -930,8 +930,12 @@ async function playGeneration(mode) {
     const order = plates.slice().sort((a, b) => plateScore(b.vi, bias) - plateScore(a.vi, bias));
     let base = discReset(0x2b2b2b); selMat.uniforms.uA.value = 0.10; selMat.uniforms.uRim.value = 0.65;
     for (const it of order) {
+      // 搜索中：标记在剩余候选间飞过 5 个位置，最后落到得分最高的点
+      const hops = searchHops(cands, it.pos, 5);
+      await animate(T.search, (e, k) => { scanTo(hops, k); scanMark.scale.setScalar(11 + 2.5 * Math.sin(k * Math.PI * 4)); scanMark.scale.z = 1; }, alive); if (!alive()) return;
       const d = distField(it.pos);
-      await animate(T.pick, (e) => { const k = Math.min(1, e * 2.5); it.sprite.scale.set(7 * k, 7 * k, 1); discGrow(base, d, R * e); cullCandidates(cands, it.pos, R * e); }, alive); if (!alive()) return;
+      await animate(T.pick, (e) => { const k = Math.min(1, e * 2.5); it.sprite.scale.set(7 * k, 7 * k, 1); discGrow(base, d, R * e); cullCandidates(cands, it.pos, R * e); scanMark.material.opacity = 0.95 * (1 - e); scanTrail.material.opacity = 0.45 * (1 - e); }, alive); if (!alive()) return;
+      hideScan(); scanMark.material.opacity = 0.95; scanTrail.material.opacity = 0.45;
       base = Float32Array.from(selGeo.getAttribute("aSel").array);
     }
     await animate(T.pickOut, (e) => { selMat.uniforms.uA.value = 0.10 * (1 - e); selMat.uniforms.uRim.value = 0.65 * (1 - e); candMat.opacity = 0.9 * (1 - e); }, alive); if (!alive()) return;
@@ -987,7 +991,7 @@ async function playGeneration(mode) {
 function cancelGeneration() {
   genToken++;
   genU.uRing.value = 2; genU.uBranch.value = 2; profileMarker.visible = false; caption(""); landmarkGroup.visible = false;
-  wireGroup.visible = false; wireMat.opacity = 0.75; hideFront(); hideSel(); hideCandidates();
+  wireGroup.visible = false; wireMat.opacity = 0.75; hideFront(); hideSel(); hideCandidates(); hideScan();
   frame.visible = document.getElementById("chk-frame").checked; bead.visible = frame.visible && !!bead.geometry.attributes.position;
   clearProbes(); headWipe.visible = false; wipePlane.constant = 1000; headPointsGeo.setDrawRange(0, Infinity);
   headSolid.visible = document.getElementById("chk-headsolid").checked; headPoints.visible = document.getElementById("chk-head").checked;
@@ -1432,6 +1436,39 @@ function discGrow(base, d, r) {
   for (let i = 0; i < d.length; i++) { if (base[i] >= 1) { arr[i] = base[i]; continue; } arr[i] = d[i] <= r - 5 ? 1 : (d[i] <= r ? 1.5 : 0); }
   attr.needsUpdate = true;
 }
+// 「搜索中」的动态：每选一个点之前，扫描标记在尚存的候选点之间飞过几个位置（最远点采样，分布开），最后落到选中的点
+const scanMark = new THREE.Sprite(new THREE.SpriteMaterial({ map: crossTexture("#111"), depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 }));
+scanMark.scale.set(11, 11, 1); scanMark.visible = false; scanMark.renderOrder = 4; root.add(scanMark);
+const scanTrailGeo = new THREE.BufferGeometry(); scanTrailGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 64), 3)); scanTrailGeo.setDrawRange(0, 0);
+const scanTrail = new THREE.Line(scanTrailGeo, new THREE.LineBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.45, depthTest: true })); scanTrail.visible = false; scanTrail.renderOrder = 4; root.add(scanTrail);
+let scanSeed = 11;
+function searchHops(cands, target, n) {
+  const live = cands.filter((q) => q.alive);
+  const rnd = () => { scanSeed = (scanSeed * 16807) % 2147483647; return scanSeed / 2147483647; };
+  const hops = [];
+  if (live.length) {
+    hops.push(live[Math.floor(rnd() * live.length)].p.clone());
+    while (hops.length < n) {   // 最远点采样：每次挑离已选跳点最远的候选，让搜索散布全头
+      let best = null, bd = -1;
+      for (const q of live) { let d = Infinity; for (const h of hops) d = Math.min(d, q.p.distanceTo(h)); if (d > bd) { bd = d; best = q; } }
+      if (!best || bd < 1) break; hops.push(best.p.clone());
+    }
+  }
+  hops.push(target.clone()); return hops;
+}
+function scanTo(hops, k) {
+  // k ∈ [0,1]：在跳点之间飞行（每段先快后慢），轨迹画到当前位置
+  const segs = hops.length - 1; if (segs < 1) return;
+  const f = k * segs, si = Math.min(segs - 1, Math.floor(f)), t = f - si, e = 1 - Math.pow(1 - t, 3);
+  const a = hops[si], b = hops[si + 1];
+  scanMark.position.lerpVectors(a, b, e); scanMark.position.addScaledVector(scanMark.position.clone().normalize(), 0);
+  const arr = scanTrailGeo.attributes.position.array; let m = 0;
+  for (let i = 0; i <= si && m < 63; i++) { arr[m * 3] = hops[i].x; arr[m * 3 + 1] = hops[i].y; arr[m * 3 + 2] = hops[i].z; m++; }
+  arr[m * 3] = scanMark.position.x; arr[m * 3 + 1] = scanMark.position.y; arr[m * 3 + 2] = scanMark.position.z; m++;
+  scanTrailGeo.setDrawRange(0, m); scanTrailGeo.attributes.position.needsUpdate = true;
+  scanMark.visible = true; scanTrail.visible = true;
+}
+function hideScan() { scanMark.visible = false; scanTrail.visible = false; scanTrailGeo.setDrawRange(0, 0); }
 // 高度偏好带：|w − target| < 0.08 的一圈
 function setHeightBand(target, color) {
   discReset(color); const attr = selGeo.getAttribute("aSel"), arr = attr.array, w = headWArr(), pos = headGeo.attributes.position;
@@ -1510,11 +1547,13 @@ function setSelStage(active, settled) {
   selMat.uniforms.uA.value = 0; selMat.uniforms.uRim.value = 0; selMat.uniforms.uB.value = 0;
 }
 // 人眼读得懂的五官区域：以 GH 真实识别出的片为源，沿头皮（测地距离）向外长到该五官的尺度；不画算法内部的搜索框
-const REGION_R = { nose: 15, eyes: 17, ears: 24, cheeks: 14, chin: 16, back: 36 };   // mm
+const REGION_R = { nose: 15, eyes: 17, ears: 24, cheeks: 14, chin: 16, back: 30 };   // mm
 let facialRegCache = null;
 function facialRegions(groups) {
   if (facialRegCache && facialRegCache.groups === groups) return facialRegCache.regions;
-  const regions = groups.map((g) => ({ g: g.g, field: geodesicField(g.top), R: REGION_R[g.g] || 20, col: new THREE.Color(FEATURE_COLORS[g.g] || "#111111") }));
+  // 后脑的候选片铺得很开（156 点），整片再长 36 mm 会盖到耳朵：后脑只从最终选中的锚点长出
+  const bestBack = (pdtFeatures && pdtFeatures.best && pdtFeatures.best.back >= 0) ? [pdtFeatures.best.back] : null;
+  const regions = groups.map((g) => ({ g: g.g, field: geodesicField(g.g === "back" ? (bestBack || g.top.slice(0, 1)) : g.top), R: REGION_R[g.g] || 20, col: new THREE.Color(FEATURE_COLORS[g.g] || "#111111") }));
   facialRegCache = { groups, regions }; return regions;
 }
 function setRegionStage(regions, k) {
