@@ -96,7 +96,10 @@
   .tag.off { display:none; }
   .tag.zone { font-size:11.5px; padding:2px 7px; }
   /* 五官点是几何读数，不是数据：深底白字、小号大写、标在点正下方，和白底的 PDT 词区分开 */
-  .tag.landmark { background:#111; color:#fff; border:none; border-radius:0; font-size:9px; letter-spacing:.12em; text-transform:uppercase; padding:2px 6px; transform:translate(-50%, 12px); }
+  /* 五官 callout：白底、按特征色描边和文字，位置由引线另一端决定（居中对齐） */
+  .tag.landmark { background:rgba(255,255,255,.96); color:#111; border:1px solid #111; border-radius:0; font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:2px 6px; transform:translate(-50%, -50%); }
+  #leaders { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+  #leaders line { stroke-width:1; }
   body.thumb #legend, body.thumb #tags, body.thumb #probe { display:none; }
   /* 加载进度：顶部一条细线 + 左栏在加载完成前不可点 */
   #progress { position:absolute; top:0; left:0; height:2px; width:0; background:#111; transition:width .2s; z-index:5; }
@@ -737,7 +740,7 @@ function pickProbeVertices(count, entry) {
 }
 function clearProbes() {
   while (probeGroup.children.length) probeGroup.remove(probeGroup.children[0]);
-  for (const t of probeTags) t.el.remove();
+  for (const t of probeTags) { t.el.remove(); if (t.line) t.line.remove(); }
   probeTags = [];
 }
 function applyGrowHook(m) {
@@ -863,9 +866,11 @@ async function playGeneration(mode) {
     clearProbes();
     const probes = pickProbeVertices(24, currentEntry);
     for (const pr of probes) {
-      const sp = new THREE.Sprite(pr.landmark ? landmarkMat : markMat); sp.position.copy(pr.q).addScaledVector(pr.nv, 1.5); sp.scale.set(0.001, 0.001, 1); probeGroup.add(sp);
+      const sp = new THREE.Sprite(pr.landmark ? landmarkMatFor(pr.name) : markMat); sp.position.copy(pr.q).addScaledVector(pr.nv, 1.5); sp.scale.set(0.001, 0.001, 1); probeGroup.add(sp);
       const el = document.createElement("div"); el.className = "tag" + (pr.zone ? " zone" : "") + (pr.landmark ? " landmark" : ""); el.innerHTML = (pr.zone && pr.value > 0) ? pr.name + " · " + tolHTML(pr.value) : pr.name; el.style.display = "none"; probeLayer.appendChild(el);
-      probeTags.push({ el, sp, pos: sp.position.clone(), nrm: pr.nv, landmark: pr.landmark, zone: !!pr.zone });
+      let line = null;
+      if (pr.landmark) { const col = FEATURE_COLORS[featureOf(pr.name)]; el.style.color = col; el.style.borderColor = col; line = document.createElementNS("http://www.w3.org/2000/svg", "line"); line.setAttribute("stroke", col); line.style.display = "none"; leaders.appendChild(line); }
+      probeTags.push({ el, sp, line, pos: sp.position.clone(), nrm: pr.nv, landmark: pr.landmark, zone: !!pr.zone });
     }
     // 1b 几何分析：先在素色头上读出五官（这是几何，不是数据）——她的识别输出的是选区：
     //    按头部比例框出每个特征的搜索区 → 留下得分最高的一片 → 收成一点
@@ -880,7 +885,7 @@ async function playGeneration(mode) {
     await animate(T.sel, (e, k) => {
       const a = Math.min(1, k / 0.28), b = Math.max(0, Math.min(1, (k - 0.3) / 0.28)), c = Math.max(0, Math.min(1, (k - 0.62) / 0.25));
       const ph = k < 0.3 ? 0 : k < 0.62 ? 1 : 2; if (ph !== phase) { phase = ph; say(caps[ph]); }
-      selMat.uniforms.uA.value = 0.10 * a * (1 - c); selMat.uniforms.uRim.value = 0.55 * a * (1 - c); selMat.uniforms.uB.value = 0.55 * b * (1 - 0.5 * c);
+      selMat.uniforms.uA.value = 0.16 * a * (1 - c); selMat.uniforms.uRim.value = 0.85 * a * (1 - c); selMat.uniforms.uB.value = 0.9 * b * (1 - 0.45 * c);
       lm.forEach((t) => { t.sp.scale.set(7.5 * c, 7.5 * c, 1); t.el.style.display = c > 0.5 ? "" : "none"; });
     }, alive); if (!alive()) return;
     await animate(900, () => {}, alive); if (!alive()) return;
@@ -1201,6 +1206,13 @@ function crossTexture(stroke) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const landmarkMat = new THREE.SpriteMaterial({ map: crossTexture("#111"), depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 });
+// 每个五官一种颜色：选区框、片、点、callout 同色（避开压力图的蓝 / 红）
+const FEATURE_COLORS = { nose: "#d9821c", eyes: "#1c9a9a", ears: "#8456c8", cheeks: "#5c9f36", chin: "#cf4a7c", back: "#5f7084" };
+function featureOf(name) { if (name === "nose") return "nose"; if (name.endsWith("eye")) return "eyes"; if (name.endsWith("ear")) return "ears"; if (name === "cheek") return "cheeks"; if (name === "chin") return "chin"; return "back"; }
+const landmarkMats = {};
+function landmarkMatFor(name) { const f = featureOf(name); if (!landmarkMats[f]) landmarkMats[f] = new THREE.SpriteMaterial({ map: crossTexture(FEATURE_COLORS[f]), depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 }); return landmarkMats[f]; }
+// 引线图层（SVG），放在 probetags 旁边
+const leaders = document.createElementNS("http://www.w3.org/2000/svg", "svg"); leaders.id = "leaders"; stage.appendChild(leaders);
 const headTree = (() => {
   // 头顶点的最近邻查找：按 8 mm 网格分桶，给落点取法线和数值
   const pos = headGeo.attributes.position, nrm = headGeo.attributes.normal, cell = 8, buckets = new Map();
@@ -1338,10 +1350,11 @@ function hideFront() { frontMesh.visible = false; frontMat.uniforms.uR.value = -
 // 这里按同一套参数在头网格上重算，分三级：0 无、1 搜索区、2 得分最高的片。点本身仍用批跑导出的真实结果。
 const selGeo = headGeo.clone();
 selGeo.setAttribute("aSel", new THREE.BufferAttribute(new Float32Array(headGeo.attributes.position.count), 1));
+selGeo.setAttribute("aCol", new THREE.BufferAttribute(new Float32Array(headGeo.attributes.position.count * 3), 3));
 const selMat = new THREE.ShaderMaterial({
   uniforms: { uA: { value: 0 }, uRim: { value: 0 }, uB: { value: 0 }, uKeep: { value: 0.22 }, uColor: { value: new THREE.Color(0x111111) } },
-  vertexShader: "attribute float aSel; varying float vS; void main(){ vS = aSel; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: "uniform float uA; uniform float uRim; uniform float uB; uniform float uKeep; uniform vec3 uColor; varying float vS; void main(){ float a = vS > 2.5 ? uKeep : (vS > 1.75 ? uB : (vS > 1.25 ? uRim : (vS > 0.5 ? uA : 0.0))); if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }",
+  vertexShader: "attribute float aSel; attribute vec3 aCol; varying float vS; varying vec3 vC; void main(){ vS = aSel; vC = aCol; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: "uniform float uA; uniform float uRim; uniform float uB; uniform float uKeep; varying float vS; varying vec3 vC; void main(){ float a = vS > 2.5 ? uKeep : (vS > 1.75 ? uB : (vS > 1.25 ? uRim : (vS > 0.5 ? uA : 0.0))); if (a < 0.01) discard; gl_FragColor = vec4(vC, a);\n#include <colorspace_fragment>\n}",
   transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const selMesh = new THREE.Mesh(selGeo, selMat); selMesh.visible = false; selMesh.renderOrder = 2; root.add(selMesh);
 function hideSel() { selMesh.visible = false; selMat.uniforms.uA.value = 0; selMat.uniforms.uRim.value = 0; selMat.uniforms.uB.value = 0; }
@@ -1398,6 +1411,9 @@ function facialSearch(entry) {
 // 写入当前一步：active 组画搜索区（边界 1.5 / 内部 1）和片（2），settled 组只留片（3）
 function setSelStage(active, settled) {
   const attr = selGeo.getAttribute("aSel"), arr = attr.array; arr.fill(0);
+  const cattr = selGeo.getAttribute("aCol"), carr = cattr.array; const _c = new THREE.Color();
+  for (const g of active.concat(settled)) { _c.set(FEATURE_COLORS[g.g] || "#111111"); for (const i of g.cand) { carr[i * 3] = _c.r; carr[i * 3 + 1] = _c.g; carr[i * 3 + 2] = _c.b; } for (const i of g.top) { carr[i * 3] = _c.r; carr[i * 3 + 1] = _c.g; carr[i * 3 + 2] = _c.b; } }
+  cattr.needsUpdate = true;
   for (const g of settled) for (const i of g.top) arr[i] = 3;
   const inC = new Uint8Array(arr.length);
   for (const g of active) for (const i of g.cand) inC[i] = 1;
@@ -1482,13 +1498,34 @@ function refreshAnchorTags() {
   }
 }
 const _wp = new THREE.Vector3(), _wn = new THREE.Vector3(), _cd = new THREE.Vector3();
+const _wc = new THREE.Vector3();
 function placeTags() {
   // 测点标签（分析阶段）
   if (probeTags.length) {
     const r = renderer.domElement.getBoundingClientRect(), sr = stage.getBoundingClientRect();
     const placed = [];   // 已放标签的屏幕框，重叠的往下错开
+    let ci = 0;
     for (const t of probeTags) {
+      if (t.line) t.line.style.display = t.el.style.display === "none" ? "none" : "";
       if (t.el.style.display === "none") continue;
+      if (t.line) {
+        // callout：点的屏幕位置 → 沿「头心→点」方向往外推，长度轮换避免互相叠；引线连点与标签；背对相机的点不标
+        _wp.copy(t.pos); root.localToWorld(_wp);
+        _wn.copy(t.nrm).transformDirection(root.matrixWorld); _cd.copy(camera.position).sub(_wp).normalize();
+        if (_wn.dot(_cd) < -0.05) { t.el.style.visibility = "hidden"; t.line.style.display = "none"; continue; }
+        t.el.style.visibility = "";
+        _wp.project(camera);
+        const px = (_wp.x + 1) / 2 * r.width + (r.left - sr.left), py = (1 - _wp.y) / 2 * r.height + (r.top - sr.top);
+        _wc.copy(viewTarget).project(camera);
+        const cx = (_wc.x + 1) / 2 * r.width + (r.left - sr.left), cy = (1 - _wc.y) / 2 * r.height + (r.top - sr.top);
+        let dx = px - cx, dy = py - cy; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+        const len = 70 + (ci++ % 3) * 20;
+        const lw = t.el.offsetWidth / 2 + 6, lh = t.el.offsetHeight / 2 + 6;
+        const lx = Math.max(lw, Math.min(sr.width - lw, px + dx * len)), ly = Math.max(lh, Math.min(sr.height - lh, py + dy * len));
+        t.el.style.left = lx + "px"; t.el.style.top = ly + "px";
+        t.line.setAttribute("x1", px.toFixed(1)); t.line.setAttribute("y1", py.toFixed(1)); t.line.setAttribute("x2", lx.toFixed(1)); t.line.setAttribute("y2", ly.toFixed(1));
+        continue;
+      }
       _wp.copy(t.pos); root.localToWorld(_wp); _wp.project(camera);
       let x = (_wp.x + 1) / 2 * r.width + (r.left - sr.left), y = (1 - _wp.y) / 2 * r.height + (r.top - sr.top);
       const w = t.el.offsetWidth + 10, h = t.el.offsetHeight + 4;
