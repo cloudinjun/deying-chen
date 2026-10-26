@@ -472,7 +472,17 @@ if (pdt.array.length === n * 3) pdt = new THREE.BufferAttribute(permutePts(pdt.a
 const headPointsGeo = new THREE.BufferGeometry();
 headPointsGeo.setAttribute("position", new THREE.BufferAttribute(sortedPos, 3));
 headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3));
-const headPoints = new THREE.Points(headPointsGeo, new THREE.PointsMaterial({ size: 0.9, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.7 }));
+const scanU = { value: 1e9 };   // 扫描半径：点云里到发射点的沿面距离 ≤ 它的点才显示；平时 1e9 = 全显
+const headPointsMat = new THREE.PointsMaterial({ size: 0.9, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.7 });
+headPointsMat.onBeforeCompile = (sh) => {
+  sh.uniforms.uScanR = scanU;
+  sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute float aField;\nvarying float vF;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvF = aField;");
+  sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uScanR;\nvarying float vF;").replace("#include <clipping_planes_fragment>", "#include <clipping_planes_fragment>\nif (vF > uScanR) discard;");
+};
+headPointsMat.customProgramCacheKey = () => "scan";
+const headPoints = new THREE.Points(headPointsGeo, headPointsMat);
+headPointsGeo.setAttribute("aField", new THREE.BufferAttribute(new Float32Array(n), 1));
+let ptVertex = null;   // 每个采样点最近的头顶点（算一次）
 const headSolid = new THREE.Mesh(headGeo, headSolidMat);
 headSolid.visible = true;
 headPoints.visible = false;
@@ -674,6 +684,7 @@ headPdtMat.clippingPlanes = [wipePlane]; headPdtMat.needsUpdate = true;
 const headWipe = new THREE.Mesh(headGeo, headPdtMat); headWipe.visible = false; headWipe.renderOrder = 1; root.add(headWipe);
 // 测点：头上均匀撒 ~22 个有数值的顶点（按高度分层、固定种子），弹出时带 kPa 标签
 const probeGroup = new THREE.Group(); root.add(probeGroup);
+const emitGroup = new THREE.Group(); emitGroup.visible = false; root.add(emitGroup);   // 扫描发射点标记
 const probeLayer = document.getElementById("probetags");
 let probeTags = [];
 // 分析阶段的读数点：五官地标按名字标（nose 6.1 kPa），再加头部分区的均值（crown 16.8 kPa），比散点数字好读
@@ -752,7 +763,7 @@ function assignGrowth(geo, entry) {
   for (const poly of polys) {
     let len = 0; const cum = [0];
     for (let i = 1; i < poly.length; i++) { len += Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1], poly[i][2] - poly[i - 1][2]); cum.push(len); }
-    poly.forEach((q, i) => samples.push([q[0], q[1], q[2], len > 0 ? cum[i] / len : 0, 1]));
+    poly.forEach((q, i) => samples.push([q[0], q[1], q[2], len > 0 ? Math.min(cum[i], len - cum[i]) / (len / 2) : 0, 1]));
   }
   const pos = geo.attributes.position, n = pos.count, out = new Float32Array(n * 2);
   if (!samples.length) { out.fill(0); geo.setAttribute("aT", new THREE.BufferAttribute(out, 2)); return; }
@@ -814,15 +825,12 @@ async function playGeneration(mode) {
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
   const plates = anchorItems.filter((it) => it.sprite);
-  const lines = branchLines.slice();
-  const longest = lines.reduce((a, b) => (a && a.pts.length >= b.pts.length ? a : b), null);
   // 线框截面：眼圈一组、支撑路径一组，按进度逐个出现；实体最后统一扫出
   buildSections(currentEntry);
   wireRing.geometry.instanceCount = 0; wireBranch.geometry.instanceCount = 0; wireMat.opacity = 0.85; wireGroup.visible = true;
   // 起始：全部收起
   for (const it of plates) it.sprite.scale.set(0.001, 0.001, 1);
-  for (const l of lines) l.geo.instanceCount = 0;
-  for (const r of ringLines) r.geo.instanceCount = 0;
+  revealSeg(pathSeg.branch, -1); revealSeg(pathSeg.ring, -1);
   genU.uRing.value = -1; genU.uBranch.value = -1;
   const lensWasVisible = lens.visible; lens.visible = false; lens.position.y = -60;
   tagLayer.style.opacity = "0";
@@ -832,11 +840,23 @@ async function playGeneration(mode) {
     const pdtOn = document.getElementById("chk-pdt").checked;
     const ptsWas = headPoints.visible, shellWas = headSolid.visible;
     headSolid.material = headSolidMat; headPointsGeo.setAttribute("color", new THREE.BufferAttribute(blue, 3)); headPointsGeo.attributes.color.needsUpdate = true;
-    headSolid.visible = false; headPoints.visible = true; headPointsGeo.setDrawRange(0, 0);
-    say("1 · Analyse — scan the head");
-    await animate(T.scan, (e, k) => { headPointsGeo.setDrawRange(0, Math.round(n * k)); }, alive); if (!alive()) return;
+    // 扫描：五个发射点（鼻、左右耳、后脑、头顶 = 环绕头的相机位）同时扫，边界按沿面距离向外扩、相遇合并
+    headSolid.visible = false; headPoints.visible = true;
+    if (!ptVertex) { ptVertex = new Int32Array(n); const pp = headPointsGeo.attributes.position; const q = new THREE.Vector3(); for (let i = 0; i < n; i++) { q.set(pp.getX(i), pp.getY(i), pp.getZ(i)); ptVertex[i] = headTree.nearest(q); } }
+    const em = [];
+    for (const k of ["anchor_nose", "anchor_lear", "anchor_rear", "anchor_backanchor"]) for (const xyz of ((currentEntry || {})[k] || [])) { const vi = headTree.nearest(new THREE.Vector3(xyz[0], xyz[1], xyz[2])); if (vi >= 0) em.push(vi); }
+    { const hp = headGeo.attributes.position; let top = 0; for (let i = 0; i < hp.count; i++) if (hp.getZ(i) > hp.getZ(top)) top = i; em.push(top); }
+    const scanField = geodesicField(em);
+    const af = headPointsGeo.getAttribute("aField"); for (let i = 0; i < n; i++) af.array[i] = ptVertex[i] >= 0 ? scanField[ptVertex[i]] : 0; af.needsUpdate = true;
+    let scanMax = 0; for (let i = 0; i < scanField.length; i += 7) if (isFinite(scanField[i]) && scanField[i] > scanMax) scanMax = scanField[i];
+    while (emitGroup.children.length) emitGroup.remove(emitGroup.children[0]);
+    for (const vi of em) { const sp = new THREE.Sprite(markMat); const hp = headGeo.attributes.position; sp.position.set(hp.getX(vi), hp.getY(vi), hp.getZ(vi)).addScaledVector(headTree.normalAt(vi), 2); sp.scale.set(4.5, 4.5, 1); emitGroup.add(sp); }
+    emitGroup.visible = true; scanU.value = 0; setFront(scanField);
+    say("1 · Analyse — scan the head: five cameras around it, each patch grows over the surface until they meet");
+    await animate(T.scan, (e) => { const R = (scanMax + 8) * e; scanU.value = R; frontMat.uniforms.uR.value = R; }, alive); if (!alive()) return;
+    hideFront(); emitGroup.visible = false; scanU.value = 1e9;
     headSolid.visible = shellWas; await animate(500, () => {}, alive); if (!alive()) return;
-    headPoints.visible = ptsWas; headPointsGeo.setDrawRange(0, Infinity);
+    headPoints.visible = ptsWas;
     // 测点
     clearProbes();
     const probes = pickProbeVertices(24, currentEntry);
@@ -874,12 +894,11 @@ async function playGeneration(mode) {
   await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
   if (!alive()) return;
   tagLayer.style.opacity = "";
-  say("2 · Points — from the nose bridge a front spreads over the face; the cheapest route around the eyes becomes the ring path");
+  say("2 · Points — from the eyes outward: the smallest zone the ring must clear grows until it reaches skin that can take pressure");
   {
-    const seed = ringPts.length ? headTree.nearest(new THREE.Vector3(ringPts[0][0], ringPts[0][1], ringPts[0][2])) : -1;
-    setFront(geodesicField([seed]));
-    const halfLen = ringLines.length ? ringLines[0].pts.reduce((acc, q, i, arr) => acc + (i ? Math.hypot(q[0] - arr[i - 1][0], q[1] - arr[i - 1][1], q[2] - arr[i - 1][2]) : 0), 0) : 250;
-    await animate(T.ringPath, (e) => { const R = (halfLen + 40) * e; frontMat.uniforms.uR.value = R; for (const r of ringLines) r.geo.instanceCount = segsWithin(r.pts, R); }, alive);
+    if (eyeField) setFront(eyeField);
+    const Rmax = (pathSeg.ring ? pathSeg.ring.maxKey : 60) + 6;
+    await animate(T.ringPath, (e) => { const R = Rmax * e; frontMat.uniforms.uR.value = R; revealSeg(pathSeg.ring, R); }, alive);
     hideFront();
   }
   if (!alive()) return;
@@ -888,11 +907,11 @@ async function playGeneration(mode) {
   if (!alive()) return;
   // 三、凝结成实体：支撑路径 → 三角截面沿路径放样 → 融合 → 镜片（五官名退场，只留支撑落点）
   for (const t of probeTags) if (t.landmark) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }
-  say("3 · Solidify — from every support point a front spreads over the scalp; the shortest routes to the ring and to each other become the paths");
+  say("3 · Solidify — the support points search for each other and for the ring; the shortest routes meet and become the paths");
   {
     setFront(geodesicField(plates.map((it) => it.vi)));
-    const maxLen = lines.reduce((m, l) => Math.max(m, l.pts.reduce((acc, q, i, arr) => acc + (i ? Math.hypot(q[0] - arr[i - 1][0], q[1] - arr[i - 1][1], q[2] - arr[i - 1][2]) : 0), 0)), 100);
-    await animate(T.line, (e) => { const R = (maxLen + 30) * e; frontMat.uniforms.uR.value = R; for (const l of lines) l.geo.instanceCount = segsWithin(l.pts, R); }, alive);
+    const Rmax = (pathSeg.branch ? pathSeg.branch.maxKey : 100) + 10;
+    await animate(T.line, (e) => { const R = Rmax * e; frontMat.uniforms.uR.value = R; revealSeg(pathSeg.branch, R); }, alive);
     hideFront();
   }
   if (!alive()) return;
@@ -927,8 +946,7 @@ function cancelGeneration() {
   if (document.getElementById("chk-pdt").checked) { headSolid.material = headPdtMat; headPointsGeo.setAttribute("color", pdt); headPointsGeo.attributes.color.needsUpdate = true; }
   lens.position.y = 0; lens.visible = document.getElementById("chk-lens").checked; tagLayer.style.opacity = "";
   for (const it of anchorItems) if (it.sprite) it.sprite.scale.set(7, 7, 1);
-  for (const l of branchLines) l.geo.instanceCount = l.n;
-  for (const r of ringLines) r.geo.instanceCount = r.n;
+  revealSeg(pathSeg.branch, Infinity); revealSeg(pathSeg.ring, Infinity); scanU.value = 1e9; emitGroup.visible = false;
 }
 const REGEN = urlState.get("regen") !== "0" && !THUMB;
 const DEMO_URL = urlState.get("demo") === "1";
@@ -1186,29 +1204,27 @@ function buildAnchors(entry) {
   };
   // 只画支撑落点；面部地标（眼 / 鼻 / 颊 / 下巴 / 耳）在 manifest 里有，但画出来像斑点，不显示
   for (const xyz of (entry.red_plates || [])) add(xyz, true);
-  // 支撑路径：SupportGrid 在头皮上算出的主枝（落点 → 眼圈），抬离皮肤 1 mm，生成动画里逐段长出
+  // 支撑路径：SupportGrid 在头皮上算出的主枝（落点 ↔ 落点 / 落点 → 眼圈），抬离皮肤 1 mm
+  // 画法：所有线段按「到路径两端的最小弧长」排序放进一个 LineSegments2 —— 推进时每条路径从两端向中间长，落点互相搜寻、在最短路上相遇
   branchLines = [];
+  const brSegs = [];
   const br = entry.branches || [];
   const polys = (br.length && Array.isArray(br[0]) && Array.isArray(br[0][0])) ? br : (br.length ? [br] : []);
   for (const poly of polys) {
     if (!poly || poly.length < 2) continue;
-    const arr = new Float32Array(poly.length * 3);
-    poly.forEach((xyz, i) => {
-      const q = new THREE.Vector3(xyz[0], xyz[1], xyz[2]);
-      const vi = headTree.nearest(q);
-      if (vi >= 0) q.addScaledVector(headTree.normalAt(vi), 1.0);
-      arr[i * 3] = q.x; arr[i * 3 + 1] = q.y; arr[i * 3 + 2] = q.z;
-    });
-    const g = new LineGeometry(); g.setPositions(arr);
-    const line = new Line2(g, branchMat); line.computeLineDistances();
-    anchorGroup.add(line); branchLines.push({ line, n: poly.length - 1, geo: g, pts: poly });
+    const lifted = poly.map((xyz) => { const q = new THREE.Vector3(xyz[0], xyz[1], xyz[2]); const vi = headTree.nearest(q); if (vi >= 0) q.addScaledVector(headTree.normalAt(vi), 1.0); return q; });
+    const cum = [0]; for (let i = 1; i < lifted.length; i++) cum.push(cum[i - 1] + lifted[i].distanceTo(lifted[i - 1]));
+    const L = cum[cum.length - 1];
+    for (let i = 1; i < lifted.length; i++) { const mid = 0.5 * (cum[i - 1] + cum[i]); brSegs.push({ key: Math.min(mid, L - mid), a: lifted[i - 1], b: lifted[i] }); }
+    branchLines.push({ pts: poly, len: L });
   }
-  // 眼圈路径：镜片边界投回头皮（+1 mm），从鼻梁处起算一圈
-  ringLines = []; ringPts = [];
+  pathSeg.branch = makeSegObj(brSegs);
+  // 眼圈路径：镜片边界投回头皮（+1 mm）。显露键 = 到双眼的沿面距离：从「最小允许范围」向外扩散，波前扫到处成形
+  ringPts = [];
   if (entry.lens_edge && entry.lens_edge.length > 10) {
     const raw = entry.lens_edge;
     let start = 0, best = Infinity;
-    raw.forEach((q, i) => { const sc = Math.abs(q[0]) * 2 + q[2]; if (sc < best) { best = sc; start = i; } });   // |x| 小且最低 = 鼻梁
+    raw.forEach((q, i) => { const sc = Math.abs(q[0]) * 2 + q[2]; if (sc < best) { best = sc; start = i; } });   // |x| 小且最低 = 鼻梁（截面 / 实体从这里起算）
     const ordered = raw.slice(start).concat(raw.slice(0, start)); ordered.push(ordered[0]);
     const onSkin = ordered.map((xyz) => {
       const q = new THREE.Vector3(xyz[0], xyz[1], xyz[2]);
@@ -1216,18 +1232,16 @@ function buildAnchors(entry) {
       if (vi >= 0) { const pos = headGeo.attributes.position; q.set(pos.getX(vi), pos.getY(vi), pos.getZ(vi)).addScaledVector(headTree.normalAt(vi), 1.0); }
       ringPts.push([q.x, q.y, q.z]); return q;
     });
-    // 从种子点（鼻梁）向两侧同时扩散：正向一半 + 反向一半，各自按段数长出
-    const half = Math.floor(onSkin.length / 2);
-    const fwd = onSkin.slice(0, half + 1), bwd = onSkin.slice(half).reverse();
-    ringLines = [];
-    for (const seq of [fwd, bwd]) {
-      const arr = new Float32Array(seq.length * 3);
-      seq.forEach((q, i) => { arr[i * 3] = q.x; arr[i * 3 + 1] = q.y; arr[i * 3 + 2] = q.z; });
-      const g = new LineGeometry(); g.setPositions(arr);
-      const ln = new Line2(g, branchMat); ln.computeLineDistances();
-      anchorGroup.add(ln); ringLines.push({ line: ln, n: seq.length - 1, geo: g, pts: seq.map((q) => [q.x, q.y, q.z]) });
+    const eyes = [];
+    for (const k of ["anchor_leye", "anchor_reye"]) for (const xyz of (entry[k] || [])) { const vi = headTree.nearest(new THREE.Vector3(xyz[0], xyz[1], xyz[2])); if (vi >= 0) eyes.push(vi); }
+    eyeField = eyes.length ? geodesicField(eyes) : null;
+    const ringSegs = [];
+    for (let i = 1; i < onSkin.length; i++) {
+      const mid = onSkin[i - 1].clone().lerp(onSkin[i], 0.5); const vi = headTree.nearest(mid);
+      ringSegs.push({ key: (eyeField && vi >= 0) ? eyeField[vi] : i, a: onSkin[i - 1], b: onSkin[i] });
     }
-  }
+    pathSeg.ring = makeSegObj(ringSegs);
+  } else { pathSeg.ring = makeSegObj([]); }
   // 面部地标（定点）：鼻、眼、耳、颊、下巴、后脑锚点——只在解释环节里出现
   while (landmarkGroup.children.length) landmarkGroup.remove(landmarkGroup.children[0]);
   for (const k of Object.keys(entry)) if (k.startsWith("anchor_")) for (const xyz of (entry[k] || [])) {
@@ -1238,7 +1252,18 @@ function buildAnchors(entry) {
   landmarkGroup.visible = false;
   refreshAnchorTags();
 }
-let ringLines = [], ringPts = [];
+let ringPts = [], eyeField = null;
+// 按键排序的线段集合：instanceCount 推到「键 ≤ R」的段数，就是波前扫到哪画到哪
+const pathSeg = { ring: null, branch: null };
+function makeSegObj(segs) {
+  segs.sort((u, v) => u.key - v.key);
+  const arr = new Float32Array(segs.length * 6); const keys = new Float64Array(segs.length);
+  segs.forEach((sg, i) => { arr.set([sg.a.x, sg.a.y, sg.a.z, sg.b.x, sg.b.y, sg.b.z], i * 6); keys[i] = sg.key; });
+  const g = new LineSegmentsGeometry(); if (segs.length) g.setPositions(arr);
+  const obj = new LineSegments2(g, branchMat); obj.computeLineDistances(); anchorGroup.add(obj);
+  return { obj, geo: g, keys, n: segs.length, maxKey: segs.length ? keys[segs.length - 1] : 0 };
+}
+function revealSeg(so, R) { if (!so) return; let lo = 0, hi = so.n; while (lo < hi) { const m = (lo + hi) >> 1; if (so.keys[m] <= R) lo = m + 1; else hi = m; } so.geo.instanceCount = lo; }
 // ---------- 扩散波前（她的路径都是头皮网格上的最短路） ----------
 // 邻接表：从头网格的三角面建边；无索引几何按坐标合并顶点
 const headAdj = (() => {
@@ -1320,7 +1345,7 @@ function buildSections(entry) {
   ringSecs.sort((a, b) => a.t - b.t);
   // 支撑路径：半径 8 → 15，离路径端点（吸引点）60 mm 内放大；按归一化弧长排序，各条同时生长
   const brSecs = [];
-  for (const l of branchLines) brSecs.push(...wireTubeAlong(l.pts, false, 6, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); }, (d, L) => d / L));
+  for (const l of branchLines) brSecs.push(...wireTubeAlong(l.pts, false, 6, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); }, (d, L) => Math.min(d, L - d) / (L / 2)));
   brSecs.sort((a, b) => a.t - b.t);
   const flat = (arr) => { const f = new Float32Array(arr.length * 36); arr.forEach((sc, i) => f.set(sc.segs, i * 36)); return f; };
   wireRing.geometry.dispose(); wireRing.geometry = new LineSegmentsGeometry(); if (ringSecs.length) wireRing.geometry.setPositions(flat(ringSecs)); wireRingN = ringSecs.length * 6;
