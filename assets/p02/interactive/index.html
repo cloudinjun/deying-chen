@@ -825,8 +825,8 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, sel: 2600, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
-          : mode === "full" ? { hold: 0, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
+  const T = mode === "intro" ? { hold: 1, sel: 2600, rank: 800, pick: 360, pickOut: 450, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
+          : mode === "full" ? { hold: 0, rank: 400, pick: 180, pickOut: 250, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
   const plates = anchorItems.filter((it) => it.sprite);
@@ -908,10 +908,34 @@ async function playGeneration(mode) {
     for (const t of probeTags) if (t.zone) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }   // 分区词退场
     await animate(300, () => {}, alive); if (!alive()) return;
   }
-  // 二、定点：支撑落点（耐受最高）→ 眼圈路径从鼻梁种子向两侧扩散 → 眼圈截面
-  say("2 · Points — choose support points on the most tolerant skin");
-  await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
-  if (!alive()) return;
+  // 二、定点：支撑落点怎么选——按耐受度打分（+ 后脑支撑的高度偏好）→ 前 5% 当候选 → 取最高 → 排除圈 → 重复（red plate 选法）
+  if (mode !== "short" && plates.length) {
+    const denKey = document.getElementById("sel-den").value, posKey = document.getElementById("sel-pos").value;
+    const R = PLATE_R[denKey] || 90, bias = PLATE_BIAS[posKey] || PLATE_BIAS.mid;
+    const cands = plateCandidates(bias);
+    say("2 · Points — rank the skin by tolerance: the most tolerant 5% are candidates for support");
+    showCandidates(cands);
+    await animate(T.rank, (e) => { candMat.opacity = 0.9 * e; }, alive); if (!alive()) return;
+    if (bias[1] > 0) {
+      say("2 · Points — back support set to " + posKey + ": candidates near that height score higher");
+      setHeightBand(bias[0], 0x5f7084);
+      await animate(T.rank, (e) => { const k = Math.sin(Math.PI * e); selMat.uniforms.uA.value = 0.16 * k; selMat.uniforms.uRim.value = 0.7 * k; }, alive); if (!alive()) return;
+    }
+    say("2 · Points — take the best candidate, keep the rest " + R + " mm away, repeat " + plates.length + " times");
+    const order = plates.slice().sort((a, b) => plateScore(b.vi, bias) - plateScore(a.vi, bias));
+    let base = discReset(0x2b2b2b); selMat.uniforms.uA.value = 0.10; selMat.uniforms.uRim.value = 0.65;
+    for (const it of order) {
+      const d = distField(it.pos);
+      await animate(T.pick, (e) => { const k = Math.min(1, e * 2.5); it.sprite.scale.set(7 * k, 7 * k, 1); discGrow(base, d, R * e); cullCandidates(cands, it.pos, R * e); }, alive); if (!alive()) return;
+      base = Float32Array.from(selGeo.getAttribute("aSel").array);
+    }
+    await animate(T.pickOut, (e) => { selMat.uniforms.uA.value = 0.10 * (1 - e); selMat.uniforms.uRim.value = 0.65 * (1 - e); candMat.opacity = 0.9 * (1 - e); }, alive); if (!alive()) return;
+    hideSel(); hideCandidates();
+  } else {
+    say("2 · Points — choose support points on the most tolerant skin");
+    await animate(T.plate, (e) => { plates.forEach((it, i) => { const k = Math.max(0, Math.min(1, (e * (plates.length + 1) - i))); it.sprite.scale.set(7 * k, 7 * k, 1); }); }, alive);
+    if (!alive()) return;
+  }
   tagLayer.style.opacity = "";
   say("2 · Points — from the eyes outward: the smallest zone the ring must clear grows until it reaches skin that can take pressure");
   {
@@ -958,7 +982,7 @@ async function playGeneration(mode) {
 function cancelGeneration() {
   genToken++;
   genU.uRing.value = 2; genU.uBranch.value = 2; profileMarker.visible = false; caption(""); landmarkGroup.visible = false;
-  wireGroup.visible = false; wireMat.opacity = 0.75; hideFront(); hideSel();
+  wireGroup.visible = false; wireMat.opacity = 0.75; hideFront(); hideSel(); hideCandidates();
   frame.visible = document.getElementById("chk-frame").checked; bead.visible = frame.visible && !!bead.geometry.attributes.position;
   clearProbes(); headWipe.visible = false; wipePlane.constant = 1000; headPointsGeo.setDrawRange(0, Infinity);
   headSolid.visible = document.getElementById("chk-headsolid").checked; headPoints.visible = document.getElementById("chk-head").checked;
@@ -1358,6 +1382,55 @@ const selMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const selMesh = new THREE.Mesh(selGeo, selMat); selMesh.visible = false; selMesh.renderOrder = 2; root.add(selMesh);
 function hideSel() { selMesh.visible = false; selMat.uniforms.uA.value = 0; selMat.uniforms.uRim.value = 0; selMat.uniforms.uB.value = 0; }
+// ---- 支撑落点（red plate）的选法，和 FacialFeatures 一致：按红度打分（+ 高度偏好）→ 取最高 → 排除圈 → 重复 ----
+const PLATE_R = { sparse: 130, mid: 90, dense: 45 };                                   // RED_PLATE_MIN_DIST
+const PLATE_BIAS = { low: [0.50, 0.60], mid: [0.62, 0.0], high: [0.92, 0.60] };          // [RED_PLATE_W_TARGET, RED_PLATE_W_BIAS]
+let headW = null;
+function headWArr() {
+  // 切掉脖子（z ≥ −82）后的归一化高度 w，和 FacialFeatures 的 uvw_head[i][2] 一致
+  if (headW) return headW;
+  const pos = headGeo.attributes.position, N = pos.count; let z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < N; i++) { const z = pos.getZ(i); if (z < -82) continue; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+  headW = new Float32Array(N); for (let i = 0; i < N; i++) headW[i] = Math.max(0, Math.min(1, (pos.getZ(i) - z0) / (z1 - z0)));
+  return headW;
+}
+function redness(i) { const c = headGeo.attributes.color; return c ? 255 * (c.getX(i) - (c.getY(i) + c.getZ(i)) / 2) : 0; }   // 同 get_redness_score：R − (G+B)/2
+function plateScore(i, bias) { return redness(i) + bias[1] * 255 * (1 - Math.abs(headWArr()[i] - bias[0])); }
+function plateCandidates(bias) {
+  const pos = headGeo.attributes.position, nrm = headGeo.attributes.normal, N = pos.count, sc = [];
+  for (let i = 0; i < N; i++) { if (pos.getZ(i) < -82) continue; sc.push([plateScore(i, bias), i]); }
+  sc.sort((a, b) => b[0] - a[0]);
+  const K = Math.max(60, Math.floor(sc.length * 0.05));
+  return sc.slice(0, K).map(([sv, i]) => ({ i, p: new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).addScaledVector(new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i)), 1.2), alive: true }));
+}
+// 候选点云：深红小点，被排除圈盖到的消失
+const candGeo = new THREE.BufferGeometry();
+const candMat = new THREE.PointsMaterial({ color: 0x8b1a1a, size: 3.4, sizeAttenuation: false, transparent: true, opacity: 0, depthTest: true, depthWrite: false });
+const candPts = new THREE.Points(candGeo, candMat); candPts.visible = false; candPts.renderOrder = 3; root.add(candPts);
+function refreshCandidates(c) { const live = c.filter((q) => q.alive); const arr = new Float32Array(Math.max(1, live.length) * 3); live.forEach((q, k) => { arr[k * 3] = q.p.x; arr[k * 3 + 1] = q.p.y; arr[k * 3 + 2] = q.p.z; }); candGeo.setAttribute("position", new THREE.BufferAttribute(arr, 3)); candGeo.setDrawRange(0, live.length); candGeo.computeBoundingSphere(); }
+function showCandidates(c) { refreshCandidates(c); candMat.opacity = 0; candPts.visible = true; }
+function cullCandidates(c, center, r) { let changed = false; for (const q of c) if (q.alive && q.p.distanceTo(center) <= r) { q.alive = false; changed = true; } if (changed) refreshCandidates(c); }
+function hideCandidates() { candPts.visible = false; candMat.opacity = 0; }
+// 排除圈画在 selMesh 叠加层上：base = 已定的圈，当前圈按半径 r 长出来（内部 1、边缘 1.5）
+function discReset(color) {
+  const attr = selGeo.getAttribute("aSel"); attr.array.fill(0); attr.needsUpdate = true;
+  const cattr = selGeo.getAttribute("aCol"), carr = cattr.array; const _c = new THREE.Color(color);
+  for (let i = 0; i < carr.length; i += 3) { carr[i] = _c.r; carr[i + 1] = _c.g; carr[i + 2] = _c.b; }
+  cattr.needsUpdate = true; selMesh.visible = true; selMat.uniforms.uB.value = 0;
+  return new Float32Array(attr.array.length);
+}
+function distField(center) { const pos = headGeo.attributes.position, N = pos.count, d = new Float32Array(N); for (let i = 0; i < N; i++) d[i] = Math.hypot(pos.getX(i) - center.x, pos.getY(i) - center.y, pos.getZ(i) - center.z); return d; }
+function discGrow(base, d, r) {
+  const attr = selGeo.getAttribute("aSel"), arr = attr.array;
+  for (let i = 0; i < d.length; i++) { if (base[i] >= 1) { arr[i] = base[i]; continue; } arr[i] = d[i] <= r - 5 ? 1 : (d[i] <= r ? 1.5 : 0); }
+  attr.needsUpdate = true;
+}
+// 高度偏好带：|w − target| < 0.08 的一圈
+function setHeightBand(target, color) {
+  discReset(color); const attr = selGeo.getAttribute("aSel"), arr = attr.array, w = headWArr(), pos = headGeo.attributes.position;
+  for (let i = 0; i < arr.length; i++) { if (pos.getZ(i) < -82) continue; const dw = Math.abs(w[i] - target); arr[i] = dw < 0.06 ? 1 : (dw < 0.08 ? 1.5 : 0); }
+  attr.needsUpdate = true;
+}
 let facialSel = null;
 function facialSearch(entry) {
   if (facialSel) return facialSel;
