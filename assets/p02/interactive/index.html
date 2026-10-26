@@ -822,7 +822,7 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, sel: 1150, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
+  const T = mode === "intro" ? { hold: 1, sel: 2600, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
           : mode === "full" ? { hold: 0, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
@@ -869,31 +869,21 @@ async function playGeneration(mode) {
     }
     // 1b 几何分析：先在素色头上读出五官（这是几何，不是数据）——她的识别输出的是选区：
     //    按头部比例框出每个特征的搜索区 → 留下得分最高的一片 → 收成一点
-    //    逐个特征：框出搜索范围（边界深、内部淡）→ 框内得分最高的片变深 → 收成点 + 名字；已识别的片留一层淡的
-    const stages = [
-      { gs: ["nose"], tags: ["nose"], cap: "1 · Analyse — nose: search the middle of the face, keep the front-most patch" },
-      { gs: ["eyes"], tags: ["left eye", "right eye"], cap: "1 · Analyse — eyes: search the upper face, keep the most recessed patch on each side" },
-      { gs: ["ears"], tags: ["left ear", "right ear"], cap: "1 · Analyse — ears: search both sides, keep where the surface folds most" },
-      { gs: ["cheeks", "chin"], tags: ["cheek", "chin"], cap: "1 · Analyse — cheeks and chin: between nose and jaw, keep the most convex bone" },
-      { gs: ["back"], tags: ["back of head"], cap: "1 · Analyse — back of head: keep the patch facing up and back, where the band will anchor" },
-    ];
+    //    一次性：所有五官的搜索框同时铺出（边界深、内部淡）→ 框内得分最高的片同时变深 → 同时收成点 + 名字
     const groups = facialSearch(currentEntry);
     const lm = probeTags.filter((t) => t.landmark);
-    const settled = [];
-    for (const st of stages) {
-      const active = groups.filter((g) => st.gs.includes(g.g));
-      const tags = lm.filter((t) => st.tags.includes(t.el.textContent));
-      say(st.cap);
-      setSelStage(active, settled);
-      await animate(T.sel, (e, k) => {
-        const a = Math.min(1, k / 0.3), b = Math.max(0, Math.min(1, (k - 0.3) / 0.3)), c = Math.max(0, Math.min(1, (k - 0.62) / 0.25));
-        selMat.uniforms.uA.value = 0.10 * a * (1 - c); selMat.uniforms.uRim.value = 0.55 * a * (1 - c); selMat.uniforms.uB.value = 0.55 * b;
-        tags.forEach((t) => { t.sp.scale.set(7.5 * c, 7.5 * c, 1); t.el.style.display = c > 0.5 ? "" : "none"; });
-      }, alive); if (!alive()) return;
-      settled.push(...active);
-      await animate(250, () => {}, alive); if (!alive()) return;
-    }
-    await animate(700, () => {}, alive); if (!alive()) return;
+    setSelStage(groups, []);
+    let phase = -1;
+    const caps = ["1 · Analyse — read the face from the geometry: one search box per feature, set by head proportions",
+                  "1 · Analyse — in each box keep the best-scoring patch: nose front-most, eyes recessed, ears folded",
+                  "1 · Analyse — one point per feature: nose, eyes, ears, cheeks, chin, back of head"];
+    await animate(T.sel, (e, k) => {
+      const a = Math.min(1, k / 0.28), b = Math.max(0, Math.min(1, (k - 0.3) / 0.28)), c = Math.max(0, Math.min(1, (k - 0.62) / 0.25));
+      const ph = k < 0.3 ? 0 : k < 0.62 ? 1 : 2; if (ph !== phase) { phase = ph; say(caps[ph]); }
+      selMat.uniforms.uA.value = 0.10 * a * (1 - c); selMat.uniforms.uRim.value = 0.55 * a * (1 - c); selMat.uniforms.uB.value = 0.55 * b * (1 - 0.5 * c);
+      lm.forEach((t) => { t.sp.scale.set(7.5 * c, 7.5 * c, 1); t.el.style.display = c > 0.5 ? "" : "none"; });
+    }, alive); if (!alive()) return;
+    await animate(900, () => {}, alive); if (!alive()) return;
     hideSel();
     // 1c 数据分析：压力耐受图从头顶擦入，再按分区给出 tolerant / moderate / sensitive
     for (const t of lm) { t.el.style.display = "none"; t.sp.scale.set(0.001, 0.001, 1); }   // 五官点和名字一起退场，下一组点出来时不打架
