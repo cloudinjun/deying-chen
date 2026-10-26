@@ -822,7 +822,7 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, sel: 900, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
+  const T = mode === "intro" ? { hold: 1, sel: 1150, scan: 1800, probe: 2000, wipe: 1600, ringPath: 2200, ringTube: 1400, plate: 1000, line: 2200, tube: 2200, fuse: 2000, lens: 1000 }
           : mode === "full" ? { hold: 0, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
@@ -869,17 +869,30 @@ async function playGeneration(mode) {
     }
     // 1b 几何分析：先在素色头上读出五官（这是几何，不是数据）——她的识别输出的是选区：
     //    按头部比例框出每个特征的搜索区 → 留下得分最高的一片 → 收成一点
-    say("1 · Analyse — geometry first: each feature gets a search box set by the head's proportions");
-    showSel(currentEntry);
-    await animate(T.sel, (e) => { selMat.uniforms.uA.value = 0.14 * e; selMat.uniforms.uB.value = 0.14 * e; }, alive); if (!alive()) return;
-    await animate(500, () => {}, alive); if (!alive()) return;
-    say("1 · Analyse — in each box keep the best-scoring patch: nose front-most, eyes recessed, ears folded");
-    await animate(T.sel, (e) => { selMat.uniforms.uA.value = 0.14 * (1 - 0.7 * e); selMat.uniforms.uB.value = 0.14 + 0.36 * e; }, alive); if (!alive()) return;
-    await animate(500, () => {}, alive); if (!alive()) return;
-    say("1 · Analyse — each patch collapses to one point: nose, eyes, ears, cheeks, chin, back of head");
+    //    逐个特征：框出搜索范围（边界深、内部淡）→ 框内得分最高的片变深 → 收成点 + 名字；已识别的片留一层淡的
+    const stages = [
+      { gs: ["nose"], tags: ["nose"], cap: "1 · Analyse — nose: search the middle of the face, keep the front-most patch" },
+      { gs: ["eyes"], tags: ["left eye", "right eye"], cap: "1 · Analyse — eyes: search the upper face, keep the most recessed patch on each side" },
+      { gs: ["ears"], tags: ["left ear", "right ear"], cap: "1 · Analyse — ears: search both sides, keep where the surface folds most" },
+      { gs: ["cheeks", "chin"], tags: ["cheek", "chin"], cap: "1 · Analyse — cheeks and chin: between nose and jaw, keep the most convex bone" },
+      { gs: ["back"], tags: ["back of head"], cap: "1 · Analyse — back of head: keep the patch facing up and back, where the band will anchor" },
+    ];
+    const groups = facialSearch(currentEntry);
     const lm = probeTags.filter((t) => t.landmark);
-    await animate(T.plate, (e, k) => { lm.forEach((t, i) => { const ph = Math.max(0, Math.min(1, (k * (lm.length + 1) - i))); t.sp.scale.set(7.5 * ph, 7.5 * ph, 1); t.el.style.display = ph > 0.6 ? "" : "none"; }); selMat.uniforms.uA.value = 0.042 * (1 - e); selMat.uniforms.uB.value = 0.5 * (1 - 0.6 * e); }, alive);
-    if (!alive()) return;
+    const settled = [];
+    for (const st of stages) {
+      const active = groups.filter((g) => st.gs.includes(g.g));
+      const tags = lm.filter((t) => st.tags.includes(t.el.textContent));
+      say(st.cap);
+      setSelStage(active, settled);
+      await animate(T.sel, (e, k) => {
+        const a = Math.min(1, k / 0.3), b = Math.max(0, Math.min(1, (k - 0.3) / 0.3)), c = Math.max(0, Math.min(1, (k - 0.62) / 0.25));
+        selMat.uniforms.uA.value = 0.10 * a * (1 - c); selMat.uniforms.uRim.value = 0.55 * a * (1 - c); selMat.uniforms.uB.value = 0.55 * b;
+        tags.forEach((t) => { t.sp.scale.set(7.5 * c, 7.5 * c, 1); t.el.style.display = c > 0.5 ? "" : "none"; });
+      }, alive); if (!alive()) return;
+      settled.push(...active);
+      await animate(250, () => {}, alive); if (!alive()) return;
+    }
     await animate(700, () => {}, alive); if (!alive()) return;
     hideSel();
     // 1c 数据分析：压力耐受图从头顶擦入，再按分区给出 tolerant / moderate / sensitive
@@ -1336,12 +1349,12 @@ function hideFront() { frontMesh.visible = false; frontMat.uniforms.uR.value = -
 const selGeo = headGeo.clone();
 selGeo.setAttribute("aSel", new THREE.BufferAttribute(new Float32Array(headGeo.attributes.position.count), 1));
 const selMat = new THREE.ShaderMaterial({
-  uniforms: { uA: { value: 0 }, uB: { value: 0 }, uColor: { value: new THREE.Color(0x111111) } },
+  uniforms: { uA: { value: 0 }, uRim: { value: 0 }, uB: { value: 0 }, uKeep: { value: 0.22 }, uColor: { value: new THREE.Color(0x111111) } },
   vertexShader: "attribute float aSel; varying float vS; void main(){ vS = aSel; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: "uniform float uA; uniform float uB; uniform vec3 uColor; varying float vS; void main(){ float a = vS > 1.5 ? uB : (vS > 0.5 ? uA : 0.0); if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }",
+  fragmentShader: "uniform float uA; uniform float uRim; uniform float uB; uniform float uKeep; uniform vec3 uColor; varying float vS; void main(){ float a = vS > 2.5 ? uKeep : (vS > 1.75 ? uB : (vS > 1.25 ? uRim : (vS > 0.5 ? uA : 0.0))); if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }",
   transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const selMesh = new THREE.Mesh(selGeo, selMat); selMesh.visible = false; selMesh.renderOrder = 2; root.add(selMesh);
-function hideSel() { selMesh.visible = false; selMat.uniforms.uA.value = 0; selMat.uniforms.uB.value = 0; }
+function hideSel() { selMesh.visible = false; selMat.uniforms.uA.value = 0; selMat.uniforms.uRim.value = 0; selMat.uniforms.uB.value = 0; }
 let facialSel = null;
 function facialSearch(entry) {
   if (facialSel) return facialSel;
@@ -1350,7 +1363,9 @@ function facialSearch(entry) {
   const bboxOf = (idx) => { const b = { x0: Infinity, y0: Infinity, z0: Infinity, x1: -Infinity, y1: -Infinity, z1: -Infinity }; for (const i of idx) { const x = X(i), y = Y(i), z = Z(i); if (x < b.x0) b.x0 = x; if (y < b.y0) b.y0 = y; if (z < b.z0) b.z0 = z; if (x > b.x1) b.x1 = x; if (y > b.y1) b.y1 = y; if (z > b.z1) b.z1 = z; } return b; };
   const c01 = (t) => (t < 0 ? 0 : t > 1 ? 1 : t);
   const uvwOf = (bb) => { const out = new Float32Array(N * 3), dx = bb.x1 - bb.x0, dy = bb.y1 - bb.y0, dz = bb.z1 - bb.z0; for (let i = 0; i < N; i++) { out[i * 3] = c01((X(i) - bb.x0) / dx); out[i * 3 + 1] = c01((Y(i) - bb.y0) / dy); out[i * 3 + 2] = c01((Z(i) - bb.z0) / dz); } return out; };
-  const all = Array.from({ length: N }, (_, i) => i);
+  // gh 里 FacialFeatures 的 UseCut = True，CutPln 是 z = −82 的水平面（法线 +z）：脖子以下不参与，包围盒比例按切后的头算
+  const CUT_Z = -82;
+  const all = Array.from({ length: N }, (_, i) => i).filter((i) => Z(i) >= CUT_Z);
   const headBB = bboxOf(all), uvwH = uvwOf(headBB);
   const U = (uvw, i) => uvw[i * 3], V = (uvw, i) => uvw[i * 3 + 1], W = (uvw, i) => uvw[i * 3 + 2];
   // 脸：头框内前部、两侧和上下各去掉一圈，法线不能太侧（|ny| ≥ 0.12）
@@ -1364,33 +1379,48 @@ function facialSearch(entry) {
   const warm = (i) => (col && col.count === N) ? c01((col.getX(i) + (1 - col.getZ(i))) / 2) : 1;
   const diag = (idx) => { if (!idx.length) return 1; const b = bboxOf(idx); return Math.max(1e-6, Math.hypot(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0)); };
   const topBy = (idx, score, frac, minN, desc = true) => { const sc = idx.map((i) => [score(i), i]); sc.sort((a, b) => desc ? b[0] - a[0] : a[0] - b[0]); return sc.slice(0, Math.max(minN, Math.floor(frac * sc.length))).map((t) => t[1]); };
-  const sel = new Float32Array(N);
-  const mark = (cand, top) => { for (const i of cand) if (sel[i] < 1) sel[i] = 1; for (const i of top) sel[i] = 2; };
+  const groups = [];
+  const mark = (cand, top, g) => { groups.push({ g, cand, top }); };
   // 鼻：中线前部框，最靠前的 0.6%
-  { const cand = all.filter((i) => U(uvwH, i) >= 0.28 && U(uvwH, i) <= 0.72 && V(uvwH, i) <= 0.20); mark(cand, topBy(cand, Y, 0.006, 12, false)); }
+  { const cand = all.filter((i) => U(uvwH, i) >= 0.28 && U(uvwH, i) <= 0.72 && V(uvwH, i) <= 0.20); mark(cand, topBy(cand, Y, 0.006, 12, false), "nose"); }
   // 眼：脸框内左右两框，最凹（脸框 v 最大）的 6%
   for (const [u0, u1] of [[0.18, 0.48], [0.52, 0.82]]) {
     let cand = face.filter((i) => U(uvwF, i) >= u0 && U(uvwF, i) <= u1 && V(uvwF, i) >= 0.10 && V(uvwF, i) <= 0.50 && W(uvwF, i) >= 0.25 && W(uvwF, i) <= 0.40);
     if (cand.length < 40) cand = face.filter((i) => U(uvwF, i) >= u0 && U(uvwF, i) <= u1 && V(uvwF, i) <= 0.50 && W(uvwF, i) >= 0.25 && W(uvwF, i) <= 0.50);
-    mark(cand, topBy(cand, (i) => V(uvwF, i), 0.06, 30));
+    mark(cand, topBy(cand, (i) => V(uvwF, i), 0.06, 30), "eyes");
   }
   // 耳：两侧框，法线最复杂的 3.5%，再收到耳高中段
   for (const side of ["L", "R"]) {
     const cand = all.filter((i) => (side === "L" ? U(uvwH, i) <= 0.22 : U(uvwH, i) >= 0.78) && V(uvwH, i) >= 0.32 && V(uvwH, i) <= 0.86 && W(uvwH, i) >= 0.38 && W(uvwH, i) <= 0.84);
     let top = topBy(cand, complexity, 0.035, 80);
     if (top.length) { const b = bboxOf(top); const zt = Math.max(b.z0, Math.min(b.z1, b.z0 + 0.55 * (b.z1 - b.z0) - 14)); const band = 0.22 * (b.z1 - b.z0); const mid = top.filter((i) => Math.abs(Z(i) - zt) <= band); if (mid.length >= 25) top = mid; }
-    mark(cand, top);
+    mark(cand, top, "ears");
   }
   // 后脑锚点：后上部中线框，法线最朝 (0, 1, 0.65) 的 5%
-  { const t = new THREE.Vector3(0, 1, 0.65).normalize(); let cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && V(uvwH, i) >= 0.65 && V(uvwH, i) <= 0.95 && W(uvwH, i) >= 0.45 && W(uvwH, i) <= 0.85); if (cand.length < 40) cand = all.filter((i) => V(uvwH, i) > 0.60); mark(cand, topBy(cand, (i) => Math.max(0, nrm.getX(i) * t.x + nrm.getY(i) * t.y + nrm.getZ(i) * t.z), 0.05, 50)); }
+  { const t = new THREE.Vector3(0, 1, 0.65).normalize(); let cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && V(uvwH, i) >= 0.65 && V(uvwH, i) <= 0.95 && W(uvwH, i) >= 0.45 && W(uvwH, i) <= 0.85); if (cand.length < 40) cand = all.filter((i) => V(uvwH, i) > 0.60); mark(cand, topBy(cand, (i) => Math.max(0, nrm.getX(i) * t.x + nrm.getY(i) * t.y + nrm.getZ(i) * t.z), 0.05, 50), "back"); }
   // 下巴：底部中线前框，凸度 + 暖色 − 高度，前 10%
-  { const cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && W(uvwH, i) <= 0.25 && V(uvwH, i) <= 0.25); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 4 * convexity(i) * inv + 10 * warm(i) - 15 * W(uvwH, i), 0.10, 20)); }
+  { const cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && W(uvwH, i) <= 0.25 && V(uvwH, i) <= 0.25); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 4 * convexity(i) * inv + 10 * warm(i) - 15 * W(uvwH, i), 0.10, 20), "chin"); }
   // 颊：鼻尖与下巴之间的中段高度、两侧框，凸度 + 暖色 − 偏离期望横向位置，前 10%
   { const nz = ((entry || {}).anchor_nose || [[0, 0, 20]])[0][2], cz = ((entry || {}).anchor_chin || [[0, 0, -60]])[0][2]; const zc = (nz + cz) / 2, zh = Math.abs(nz - cz) / 2 * 0.2;
-    for (const [u0, u1, tu] of [[0.10, 0.38, 0.22], [0.62, 0.90, 0.78]]) { const cand = all.filter((i) => Z(i) <= zc + zh && Z(i) >= zc - zh && U(uvwH, i) >= u0 && U(uvwH, i) <= u1 && W(uvwH, i) >= 0.25 && W(uvwH, i) <= 0.48 && V(uvwH, i) >= 0.05 && V(uvwH, i) <= 0.35); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 6 * convexity(i) * inv + 15 * warm(i) - 4 * Math.abs(U(uvwH, i) - tu), 0.10, 20)); } }
-  facialSel = sel; return sel;
+    for (const [u0, u1, tu] of [[0.10, 0.38, 0.22], [0.62, 0.90, 0.78]]) { const cand = all.filter((i) => Z(i) <= zc + zh && Z(i) >= zc - zh && U(uvwH, i) >= u0 && U(uvwH, i) <= u1 && W(uvwH, i) >= 0.25 && W(uvwH, i) <= 0.48 && V(uvwH, i) >= 0.05 && V(uvwH, i) <= 0.35); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 6 * convexity(i) * inv + 15 * warm(i) - 4 * Math.abs(U(uvwH, i) - tu), 0.10, 20), "cheeks"); } }
+  facialSel = groups; return groups;
 }
-function showSel(entry) { selGeo.getAttribute("aSel").array.set(facialSearch(entry)); selGeo.getAttribute("aSel").needsUpdate = true; selMesh.visible = true; }
+// 写入当前一步：active 组画搜索区（边界 1.5 / 内部 1）和片（2），settled 组只留片（3）
+function setSelStage(active, settled) {
+  const attr = selGeo.getAttribute("aSel"), arr = attr.array; arr.fill(0);
+  for (const g of settled) for (const i of g.top) arr[i] = 3;
+  const inC = new Uint8Array(arr.length);
+  for (const g of active) for (const i of g.cand) inC[i] = 1;
+  for (const g of active) for (const i of g.cand) {
+    if (arr[i] >= 3) continue;
+    const a = headAdj[i]; let edge = false;
+    for (let k = 0; k < a.length; k += 2) if (!inC[a[k]]) { edge = true; break; }
+    arr[i] = edge ? 1.5 : 1;
+  }
+  for (const g of active) for (const i of g.top) arr[i] = 2;
+  attr.needsUpdate = true; selMesh.visible = true;
+  selMat.uniforms.uA.value = 0; selMat.uniforms.uRim.value = 0; selMat.uniforms.uB.value = 0;
+}
 window.__facial = facialSearch;
 window.__geo = geodesicField; window.__wire = buildSections;
 // 折线按累计长度画到 R：返回应显示的段数
