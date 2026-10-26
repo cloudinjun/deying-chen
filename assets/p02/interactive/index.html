@@ -429,17 +429,20 @@ async function loadPdtMap(key) {
     for (let i = 0; i < u.length; i += 3) { col.setRGB(u[i] / 255, u[i + 1] / 255, u[i + 2] / 255, THREE.SRGBColorSpace); f[i] = col.r; f[i + 1] = col.g; f[i + 2] = col.b; }
     return new THREE.BufferAttribute(f, 3);
   };
-  const [h, pt, vals] = await Promise.all([
+  const [h, pt, vals, feat] = await Promise.all([
     fetch("assets/pdt/" + key + "_head.bin?v=" + CACHE_TAG).then((r) => r.arrayBuffer()),
     fetch("assets/pdt/" + key + "_points.bin?v=" + CACHE_TAG).then((r) => r.arrayBuffer()),
     fetch("assets/pdt/" + key + "_values.bin?v=" + CACHE_TAG).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
+    // GH 里 FacialFeatures 真实算出的候选片 / 红板排序（pipeline\FEATURE_SETS.md），没有就退回页面重算
+    fetch("assets/pdt/" + key + "_features.json?v=" + CACHE_TAG).then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   const ptsAttr = toAttr(pt);
-  pdtCache[key] = { head: toAttr(h), points: new THREE.BufferAttribute(permutePts(ptsAttr.array, 3), 3), values: vals ? new Float32Array(vals) : null };
+  pdtCache[key] = { head: toAttr(h), points: new THREE.BufferAttribute(permutePts(ptsAttr.array, 3), 3), values: vals ? new Float32Array(vals) : null, features: feat };
   return pdtCache[key];
 }
 const pdtMeta = await fetch("assets/pdt/pdt_maps.json?v=" + CACHE_TAG).then((r) => r.json()).catch(() => null);
 let pdtValues = null;        // 当前图逐顶点数值（kPa）
+let pdtFeatures = null;      // 当前图的真实候选集（GH 导出的 <key>_features.json）
 function pdtScale(key) {
   const sc = pdtMeta && ((pdtMeta.scales || {})[key] || pdtMeta.scale);
   return sc || { vmin: 0, vmax: 20 };
@@ -458,6 +461,7 @@ async function applyPdtMap(key) {
     const m = await loadPdtMap(key);
     pdt = m.points;
     pdtValues = m.values;
+    pdtFeatures = m.features || null; facialSel = null;
     headGeo.setAttribute("color", m.head);
     updateLegend(key);
     refreshAnchorTags();
@@ -912,7 +916,7 @@ async function playGeneration(mode) {
   if (mode !== "short" && plates.length) {
     const denKey = document.getElementById("sel-den").value, posKey = document.getElementById("sel-pos").value;
     const R = PLATE_R[denKey] || 90, bias = PLATE_BIAS[posKey] || PLATE_BIAS.mid;
-    const cands = plateCandidates(bias);
+    const cands = plateCandidates(bias, posKey);
     say("2 · Points — rank the skin by tolerance: the most tolerant 5% are candidates for support");
     showCandidates(cands);
     await animate(T.rank, (e) => { candMat.opacity = 0.9 * e; }, alive); if (!alive()) return;
@@ -1396,8 +1400,10 @@ function headWArr() {
 }
 function redness(i) { const c = headGeo.attributes.color; return c ? 255 * (c.getX(i) - (c.getY(i) + c.getZ(i)) / 2) : 0; }   // 同 get_redness_score：R − (G+B)/2
 function plateScore(i, bias) { return redness(i) + bias[1] * 255 * (1 - Math.abs(headWArr()[i] - bias[0])); }
-function plateCandidates(bias) {
+function plateCandidates(bias, posKey) {
   const pos = headGeo.attributes.position, nrm = headGeo.attributes.normal, N = pos.count, sc = [];
+  const rr = pdtFeatures && pdtFeatures.red_rank && pdtFeatures.red_rank[posKey];
+  if (rr) return rr.map((i) => ({ i, p: new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).addScaledVector(new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i)), 1.2), alive: true }));
   for (let i = 0; i < N; i++) { if (pos.getZ(i) < -82) continue; sc.push([plateScore(i, bias), i]); }
   sc.sort((a, b) => b[0] - a[0]);
   const K = Math.max(60, Math.floor(sc.length * 0.05));
@@ -1456,29 +1462,31 @@ function facialSearch(entry) {
   const diag = (idx) => { if (!idx.length) return 1; const b = bboxOf(idx); return Math.max(1e-6, Math.hypot(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0)); };
   const topBy = (idx, score, frac, minN, desc = true) => { const sc = idx.map((i) => [score(i), i]); sc.sort((a, b) => desc ? b[0] - a[0] : a[0] - b[0]); return sc.slice(0, Math.max(minN, Math.floor(frac * sc.length))).map((t) => t[1]); };
   const groups = [];
-  const mark = (cand, top, g) => { groups.push({ g, cand, top }); };
+  const real = (pdtFeatures && pdtFeatures.features) || null;
+  // 片优先用 GH 真实导出的 *_top；没有该图的导出文件才用页面按规则重算的
+  const mark = (cand, top, g, name) => { groups.push({ g, cand, top: (real && real[name]) ? real[name] : top, real: !!(real && real[name]) }); };
   // 鼻：中线前部框，最靠前的 0.6%
-  { const cand = all.filter((i) => U(uvwH, i) >= 0.28 && U(uvwH, i) <= 0.72 && V(uvwH, i) <= 0.20); mark(cand, topBy(cand, Y, 0.006, 12, false), "nose"); }
+  { const cand = all.filter((i) => U(uvwH, i) >= 0.28 && U(uvwH, i) <= 0.72 && V(uvwH, i) <= 0.20); mark(cand, topBy(cand, Y, 0.006, 12, false), "nose", "nose"); }
   // 眼：脸框内左右两框，最凹（脸框 v 最大）的 6%
-  for (const [u0, u1] of [[0.18, 0.48], [0.52, 0.82]]) {
+  for (const [u0, u1, nm] of [[0.18, 0.48, "left_eye"], [0.52, 0.82, "right_eye"]]) {
     let cand = face.filter((i) => U(uvwF, i) >= u0 && U(uvwF, i) <= u1 && V(uvwF, i) >= 0.10 && V(uvwF, i) <= 0.50 && W(uvwF, i) >= 0.25 && W(uvwF, i) <= 0.40);
     if (cand.length < 40) cand = face.filter((i) => U(uvwF, i) >= u0 && U(uvwF, i) <= u1 && V(uvwF, i) <= 0.50 && W(uvwF, i) >= 0.25 && W(uvwF, i) <= 0.50);
-    mark(cand, topBy(cand, (i) => V(uvwF, i), 0.06, 30), "eyes");
+    mark(cand, topBy(cand, (i) => V(uvwF, i), 0.06, 30), "eyes", nm);
   }
   // 耳：两侧框，法线最复杂的 3.5%，再收到耳高中段
   for (const side of ["L", "R"]) {
     const cand = all.filter((i) => (side === "L" ? U(uvwH, i) <= 0.22 : U(uvwH, i) >= 0.78) && V(uvwH, i) >= 0.32 && V(uvwH, i) <= 0.86 && W(uvwH, i) >= 0.38 && W(uvwH, i) <= 0.84);
     let top = topBy(cand, complexity, 0.035, 80);
     if (top.length) { const b = bboxOf(top); const zt = Math.max(b.z0, Math.min(b.z1, b.z0 + 0.55 * (b.z1 - b.z0) - 14)); const band = 0.22 * (b.z1 - b.z0); const mid = top.filter((i) => Math.abs(Z(i) - zt) <= band); if (mid.length >= 25) top = mid; }
-    mark(cand, top, "ears");
+    mark(cand, top, "ears", side === "L" ? "left_ear" : "right_ear");
   }
   // 后脑锚点：后上部中线框，法线最朝 (0, 1, 0.65) 的 5%
-  { const t = new THREE.Vector3(0, 1, 0.65).normalize(); let cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && V(uvwH, i) >= 0.65 && V(uvwH, i) <= 0.95 && W(uvwH, i) >= 0.45 && W(uvwH, i) <= 0.85); if (cand.length < 40) cand = all.filter((i) => V(uvwH, i) > 0.60); mark(cand, topBy(cand, (i) => Math.max(0, nrm.getX(i) * t.x + nrm.getY(i) * t.y + nrm.getZ(i) * t.z), 0.05, 50), "back"); }
+  { const t = new THREE.Vector3(0, 1, 0.65).normalize(); let cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && V(uvwH, i) >= 0.65 && V(uvwH, i) <= 0.95 && W(uvwH, i) >= 0.45 && W(uvwH, i) <= 0.85); if (cand.length < 40) cand = all.filter((i) => V(uvwH, i) > 0.60); mark(cand, topBy(cand, (i) => Math.max(0, nrm.getX(i) * t.x + nrm.getY(i) * t.y + nrm.getZ(i) * t.z), 0.05, 50), "back", "back"); }
   // 下巴：底部中线前框，凸度 + 暖色 − 高度，前 10%
-  { const cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && W(uvwH, i) <= 0.25 && V(uvwH, i) <= 0.25); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 4 * convexity(i) * inv + 10 * warm(i) - 15 * W(uvwH, i), 0.10, 20), "chin"); }
+  { const cand = all.filter((i) => U(uvwH, i) >= 0.40 && U(uvwH, i) <= 0.60 && W(uvwH, i) <= 0.25 && V(uvwH, i) <= 0.25); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 4 * convexity(i) * inv + 10 * warm(i) - 15 * W(uvwH, i), 0.10, 20), "chin", "chin"); }
   // 颊：鼻尖与下巴之间的中段高度、两侧框，凸度 + 暖色 − 偏离期望横向位置，前 10%
   { const nz = ((entry || {}).anchor_nose || [[0, 0, 20]])[0][2], cz = ((entry || {}).anchor_chin || [[0, 0, -60]])[0][2]; const zc = (nz + cz) / 2, zh = Math.abs(nz - cz) / 2 * 0.2;
-    for (const [u0, u1, tu] of [[0.10, 0.38, 0.22], [0.62, 0.90, 0.78]]) { const cand = all.filter((i) => Z(i) <= zc + zh && Z(i) >= zc - zh && U(uvwH, i) >= u0 && U(uvwH, i) <= u1 && W(uvwH, i) >= 0.25 && W(uvwH, i) <= 0.48 && V(uvwH, i) >= 0.05 && V(uvwH, i) <= 0.35); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 6 * convexity(i) * inv + 15 * warm(i) - 4 * Math.abs(U(uvwH, i) - tu), 0.10, 20), "cheeks"); } }
+    for (const [u0, u1, tu, nm] of [[0.10, 0.38, 0.22, "left_cheek"], [0.62, 0.90, 0.78, "right_cheek"]]) { const cand = all.filter((i) => Z(i) <= zc + zh && Z(i) >= zc - zh && U(uvwH, i) >= u0 && U(uvwH, i) <= u1 && W(uvwH, i) >= 0.25 && W(uvwH, i) <= 0.48 && V(uvwH, i) >= 0.05 && V(uvwH, i) <= 0.35); const inv = 1 / diag(cand); mark(cand, topBy(cand, (i) => 6 * convexity(i) * inv + 15 * warm(i) - 4 * Math.abs(U(uvwH, i) - tu), 0.10, 20), "cheeks", nm); } }
   facialSel = groups; return groups;
 }
 // 写入当前一步：active 组画搜索区（边界 1.5 / 内部 1）和片（2），settled 组只留片（3）
