@@ -881,15 +881,16 @@ async function playGeneration(mode) {
     //    一次性：所有五官的搜索框同时铺出（边界深、内部淡）→ 框内得分最高的片同时变深 → 同时收成点 + 名字
     const groups = facialSearch(currentEntry);
     const lm = probeTags.filter((t) => t.landmark);
-    setSelStage(groups, []);
+    // 人眼的表达：从识别出的片沿头皮长出一块该五官大小的区域（同色），再弹出 callout；算法内部的搜索框不画
+    const regions = facialRegions(groups);
     let phase = -1;
-    const caps = ["1 · Analyse — read the face from the geometry: one search box per feature, set by head proportions",
-                  "1 · Analyse — in each box keep the best-scoring patch: nose front-most, eyes recessed, ears folded",
-                  "1 · Analyse — one point per feature: nose, eyes, ears, cheeks, chin, back of head"];
+    const caps = ["1 · Analyse — read the face from the geometry: nose, eyes, ears, cheeks, chin, back of head",
+                  "1 · Analyse — each found by its own rule: nose front-most, eyes recessed, ears folded, cheeks and chin convex"];
+    selMat.uniforms.uA.value = 0.34; selMat.uniforms.uRim.value = 0.85; selMat.uniforms.uB.value = 0;
     await animate(T.sel, (e, k) => {
-      const a = Math.min(1, k / 0.28), b = Math.max(0, Math.min(1, (k - 0.3) / 0.28)), c = Math.max(0, Math.min(1, (k - 0.62) / 0.25));
-      const ph = k < 0.3 ? 0 : k < 0.62 ? 1 : 2; if (ph !== phase) { phase = ph; say(caps[ph]); }
-      selMat.uniforms.uA.value = 0.16 * a * (1 - c); selMat.uniforms.uRim.value = 0.85 * a * (1 - c); selMat.uniforms.uB.value = 0.9 * b * (1 - 0.45 * c);
+      const grow = Math.min(1, k / 0.45), c = Math.max(0, Math.min(1, (k - 0.5) / 0.25));
+      const ph = k < 0.5 ? 0 : 1; if (ph !== phase) { phase = ph; say(caps[ph]); }
+      setRegionStage(regions, grow);
       lm.forEach((t) => { t.sp.scale.set(7.5 * c, 7.5 * c, 1); t.el.style.display = c > 0.5 ? "" : "none"; });
     }, alive); if (!alive()) return;
     await animate(900, () => {}, alive); if (!alive()) return;
@@ -1507,6 +1508,25 @@ function setSelStage(active, settled) {
   for (const g of active) for (const i of g.top) arr[i] = 2;
   attr.needsUpdate = true; selMesh.visible = true;
   selMat.uniforms.uA.value = 0; selMat.uniforms.uRim.value = 0; selMat.uniforms.uB.value = 0;
+}
+// 人眼读得懂的五官区域：以 GH 真实识别出的片为源，沿头皮（测地距离）向外长到该五官的尺度；不画算法内部的搜索框
+const REGION_R = { nose: 15, eyes: 17, ears: 24, cheeks: 14, chin: 16, back: 36 };   // mm
+let facialRegCache = null;
+function facialRegions(groups) {
+  if (facialRegCache && facialRegCache.groups === groups) return facialRegCache.regions;
+  const regions = groups.map((g) => ({ g: g.g, field: geodesicField(g.top), R: REGION_R[g.g] || 20, col: new THREE.Color(FEATURE_COLORS[g.g] || "#111111") }));
+  facialRegCache = { groups, regions }; return regions;
+}
+function setRegionStage(regions, k) {
+  const attr = selGeo.getAttribute("aSel"), arr = attr.array, cattr = selGeo.getAttribute("aCol"), carr = cattr.array;
+  for (let i = 0; i < arr.length; i++) {
+    let best = Infinity, bi = -1;
+    for (let j = 0; j < regions.length; j++) { const t = regions[j].field[i] / regions[j].R; if (t < best) { best = t; bi = j; } }
+    if (bi < 0 || best > k) { arr[i] = 0; continue; }
+    arr[i] = best > k - 0.14 ? 1.5 : 1;
+    const c = regions[bi].col; carr[i * 3] = c.r; carr[i * 3 + 1] = c.g; carr[i * 3 + 2] = c.b;
+  }
+  attr.needsUpdate = true; cattr.needsUpdate = true; selMesh.visible = true;
 }
 window.__facial = facialSearch;
 window.__geo = geodesicField; window.__wire = buildSections;
