@@ -827,7 +827,7 @@ async function playGeneration(mode) {
   const plates = anchorItems.filter((it) => it.sprite);
   // 线框截面：眼圈一组、支撑路径一组，按进度逐个出现；实体最后统一扫出
   buildSections(currentEntry);
-  wireRing.geometry.instanceCount = 0; wireBranch.geometry.instanceCount = 0; wireMat.opacity = 0.85; wireGroup.visible = true;
+  wireRing.geometry.instanceCount = 0; wireBranch.geometry.instanceCount = 0; wireMat.opacity = 0.75; wireGroup.visible = true;
   // 起始：全部收起
   for (const it of plates) it.sprite.scale.set(0.001, 0.001, 1);
   revealSeg(pathSeg.branch, -1); revealSeg(pathSeg.ring, -1);
@@ -922,13 +922,13 @@ async function playGeneration(mode) {
   say("3 · Solidify — the profiles are lofted into members, fused into one body and smoothed");
   await animate(T.fuse || 1200, (e) => {
     genU.uRing.value = Math.min(1.02, e * 1.6); genU.uBranch.value = Math.max(-0.01, (e - 0.25) / 0.75) * 1.02;
-    wireMat.opacity = 0.85 * (1 - e);
+    wireMat.opacity = 0.75 * (1 - e);
   }, alive);
-  genU.uRing.value = 2; genU.uBranch.value = 2; wireGroup.visible = false; wireMat.opacity = 0.85;
+  genU.uRing.value = 2; genU.uBranch.value = 2; wireGroup.visible = false; wireMat.opacity = 0.75;
   if (!alive()) return;
   await animate(400, () => {}, alive); if (!alive()) return;
   // 6 镜片
-  say("3 · Solidify — a standard lens is fitted and held by a printed rim; the seal is checked");
+  say("3 · Solidify — a standard lens is fitted and held by a printed rim");
   lens.visible = lensWasVisible;
   await animate(T.lens, (e) => { lens.position.y = -60 * (1 - e); }, alive);
   if (!alive()) return;
@@ -939,7 +939,7 @@ async function playGeneration(mode) {
 function cancelGeneration() {
   genToken++;
   genU.uRing.value = 2; genU.uBranch.value = 2; profileMarker.visible = false; caption(""); landmarkGroup.visible = false;
-  wireGroup.visible = false; wireMat.opacity = 0.85; hideFront();
+  wireGroup.visible = false; wireMat.opacity = 0.75; hideFront();
   frame.visible = document.getElementById("chk-frame").checked; bead.visible = frame.visible && !!bead.geometry.attributes.position;
   clearProbes(); headWipe.visible = false; wipePlane.constant = 1000; headPointsGeo.setDrawRange(0, Infinity);
   headSolid.visible = document.getElementById("chk-headsolid").checked; headPoints.visible = document.getElementById("chk-head").checked;
@@ -1010,32 +1010,42 @@ async function renderGrid() {
   ctx.save(); ctx.translate(14, 0); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center";
   posList.forEach((p, i) => ctx.fillText("back support · " + p, -(pad + cell * i + cell / 2), 4));
   ctx.restore();
+  // 先把九格的几何都载好（镜框 / 镜片 / 固定圈），再改渲染尺寸——否则等待加载期间主视图会以小缓冲拉伸显示（看起来突然放大）
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+    const key = variantKeyFor(posList[i], denList[j]); const e = manifest.variants[key]; if (!e) continue;
+    let set = variantCache[key];
+    if (!set) {
+      const loads = [loadGLB("variants/" + key)];
+      if (e.has_lens) loads.push(loadGLB("variants/" + key + "__lens"));
+      if (e.has_bead) loads.push(loadGLB("variants/" + key + "__bead"));
+      const results = await Promise.all(loads);
+      set = { frame: firstMesh(results[0]).geometry }; set.frame.computeVertexNormals();
+      let ri = 1;
+      if (e.has_lens) { set.lens = firstMesh(results[ri++]).geometry; set.lens.computeVertexNormals(); }
+      if (e.has_bead) { set.bead = firstMesh(results[ri++]).geometry; set.bead.computeVertexNormals(); }
+      variantCache[key] = set;
+    } else if (e.has_bead && !set.bead) {
+      const sc = await loadGLB("variants/" + key + "__bead"); set.bead = firstMesh(sc).geometry; set.bead.computeVertexNormals();
+    }
+  }
   // 固定一台斜前方相机，避免每格视角不同
   const savedPos = camera.position.clone(), savedTarget = controls.target.clone();
-  const savedGeo = frame.geometry, savedLens = lens.geometry, savedOverlay = overlay.visible;
-  overlay.visible = false;
+  const savedGeo = frame.geometry, savedLens = lens.geometry, savedBead = bead.geometry, savedBeadVis = bead.visible, savedOverlay = overlay.visible, savedAnchors = anchorGroup.visible;
+  overlay.visible = false; anchorGroup.visible = false;
   const prevSize = new THREE.Vector2(); renderer.getSize(prevSize);
   renderer.setSize(cell, cell, false);
   camera.aspect = 1; camera.updateProjectionMatrix();
   const dir = views.iso.clone().normalize();
   camera.position.copy(target.clone().add(dir.multiplyScalar(580)));   // 九宫格仍按眼镜取景
   camera.lookAt(target);
+  try {
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) {
       const key = variantKeyFor(posList[i], denList[j]);
-      const e = manifest.variants[key];
-      if (!variantCache[key]) {
-        const loads = [loadGLB("variants/" + key)];
-        if (e.has_lens) loads.push(loadGLB("variants/" + key + "__lens"));
-        const results = await Promise.all(loads);
-        const set = { frame: firstMesh(results[0]).geometry };
-        set.frame.computeVertexNormals();
-        if (e.has_lens) { set.lens = firstMesh(results[1]).geometry; set.lens.computeVertexNormals(); }
-        variantCache[key] = set;
-      }
-      const set = variantCache[key];
+      const e = manifest.variants[key]; const set = variantCache[key]; if (!e || !set) continue;
       frame.geometry = set.frame;
       if (set.lens) lens.geometry = set.lens;
+      if (set.bead) { bead.geometry = set.bead; bead.visible = frame.visible; } else bead.visible = false;
       renderer.render(scene, camera);
       ctx.drawImage(renderer.domElement, 0, 0, renderer.domElement.width, renderer.domElement.height, pad + cell * j, pad + cell * i, cell, cell);
       ctx.fillStyle = "#111"; ctx.font = "11px Inter, Arial, sans-serif"; ctx.textAlign = "left";
@@ -1043,11 +1053,13 @@ async function renderGrid() {
       ctx.fillText(`H ${e.frame_size[2].toFixed(0)} mm · ${e.est_mass_g} g · lens base ${e.lens_base_curve || "–"} · seal ${e.pass ? "PASS" : "FAIL"}` + (inside !== null ? ` ${inside}/${e.edge_depths.length}` : ""), pad + cell * j + 10, pad + cell * i + cell - 10);
     }
   }
+  } finally {
   // 还原
-  frame.geometry = savedGeo; lens.geometry = savedLens; overlay.visible = savedOverlay;
+  frame.geometry = savedGeo; lens.geometry = savedLens; bead.geometry = savedBead; bead.visible = savedBeadVis; overlay.visible = savedOverlay; anchorGroup.visible = savedAnchors;
   renderer.setSize(prevSize.x, prevSize.y, false);
   resize();
   camera.position.copy(savedPos); controls.target.copy(savedTarget); controls.update();
+  }
   document.getElementById("btn-grid-save").dataset.name = "goggles_variants_3x3.png";
   document.getElementById("gridwrap").classList.add("on");
 }
@@ -1302,7 +1314,7 @@ window.__geo = geodesicField; window.__wire = buildSections;
 // 折线按累计长度画到 R：返回应显示的段数
 function segsWithin(poly, R) { let cum = 0; for (let i = 1; i < poly.length; i++) { cum += Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1], poly[i][2] - poly[i - 1][2]); if (cum > R) return i - 1; } return poly.length - 1; }
 // 线框截面（GridForm 的「沿轨迹布截面」）：所有截面按路径进度排序放进一个 LineSegments2，instanceCount 推进就是逐个出现
-const wireMat = new LineMaterial({ color: 0x222222, linewidth: 1.1, transparent: true, opacity: 0.85, worldUnits: false });
+const wireMat = new LineMaterial({ color: 0x3a3a3a, linewidth: 0.9, transparent: true, opacity: 0.75, worldUnits: false });
 wireMat.resolution.set(renderer.domElement.width, renderer.domElement.height);
 const wireGroup = new THREE.Group(); wireGroup.visible = false; root.add(wireGroup);
 const wireRing = new LineSegments2(new LineSegmentsGeometry(), wireMat); wireGroup.add(wireRing);
@@ -1327,12 +1339,14 @@ function wireTubeAlong(poly, closedRing, spacing, radiusAt, tOf) {
     secs.push({ d, tri: sectionTriangle(pnt, tan, radiusAt(d, L)) });
   }
   const out = [];
+  const ringEvery = Math.max(1, Math.round(24 / spacing));   // 截面三角每 24 mm 一个，其余只连纵棱
   for (let k = 0; k < secs.length; k++) {
     const c = secs[k].tri, pcs = k > 0 ? secs[k - 1].tri : (closedRing ? secs[secs.length - 1].tri : c);
     const segs = [];
     const push = (p, q) => segs.push(p.x, p.y, p.z, q.x, q.y, q.z);
-    push(c[0], c[1]); push(c[1], c[2]); push(c[2], c[0]);
     push(pcs[0], c[0]); push(pcs[1], c[1]); push(pcs[2], c[2]);
+    if (k % ringEvery === 0) { push(c[0], c[1]); push(c[1], c[2]); push(c[2], c[0]); }
+    else { push(c[0], c[0]); push(c[1], c[1]); push(c[2], c[2]); }   // 占位零长段，保持每截面 6 段便于按进度推进
     out.push({ t: tOf(secs[k].d, L), segs });
   }
   return out;
@@ -1341,11 +1355,11 @@ function buildSections(entry) {
   if (!entry) return;
   // 眼圈：连续三角管线框，从鼻梁种子向两侧生长（t = 离种子的环向距离），半径 9
   let ringSecs = [];
-  if (ringPts.length > 10) ringSecs = wireTubeAlong(ringPts, true, 6, () => 9, (d, L) => Math.min(d, L - d) / (L / 2));
+  if (ringPts.length > 10) ringSecs = wireTubeAlong(ringPts, true, 4, () => 9, (d, L) => Math.min(d, L - d) / (L / 2));
   ringSecs.sort((a, b) => a.t - b.t);
   // 支撑路径：半径 8 → 15，离路径端点（吸引点）60 mm 内放大；按归一化弧长排序，各条同时生长
   const brSecs = [];
-  for (const l of branchLines) brSecs.push(...wireTubeAlong(l.pts, false, 6, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); }, (d, L) => Math.min(d, L - d) / (L / 2)));
+  for (const l of branchLines) brSecs.push(...wireTubeAlong(l.pts, false, 4, (d, L) => { const de = Math.min(d, L - d); return 8 + 7 * Math.max(0, 1 - de / 60); }, (d, L) => Math.min(d, L - d) / (L / 2)));
   brSecs.sort((a, b) => a.t - b.t);
   const flat = (arr) => { const f = new Float32Array(arr.length * 36); arr.forEach((sc, i) => f.set(sc.segs, i * 36)); return f; };
   wireRing.geometry.dispose(); wireRing.geometry = new LineSegmentsGeometry(); if (ringSecs.length) wireRing.geometry.setPositions(flat(ringSecs)); wireRingN = ringSecs.length * 6;
@@ -1556,21 +1570,19 @@ async function runDemo() {
   document.body.classList.remove("predemo");
   await intro;
   controls.autoRotate = false;
-  // 第三幕：检查——侧视，气密环点亮，PASS
-  caption("Does it seal? Does the lens clear the face?");
-  setView("side", true); await sleep(1200);
-  setCheck("chk-overlay", true); document.getElementById("sp-seal").classList.add("pulse"); await sleep(2800);
-  setCheck("chk-overlay", false); document.getElementById("sp-seal").classList.remove("pulse");
-  caption("");
-  // 第四幕：换人、换参数——光标出现
+  // （气密检查是管线的自检，对观众没意义，不演）
+  // 第三幕：换人、换参数——光标出现
+  await sleep(600);
   document.body.classList.remove("nocursor");
-  setView("iso", true); await sleep(900);
   caption("Another person's tolerance map: the supports move");
-  await demoPick("sel-map", "p20"); await sleep(3200);
-  await demoPick("sel-map", "male"); await sleep(3200);
-  caption("Same logic at any density or support position");
-  await demoPick("sel-den", "dense"); await sleep(3000);
-  await demoPick("sel-pos", "high"); await sleep(3000);
+  await demoPick("sel-map", "p20"); await sleep(3000);
+  await demoPick("sel-map", "p15"); await sleep(3000);
+  caption("Nine structures for every map: three support heights, three densities");
+  await cursorClick(document.getElementById("btn-grid")); await sleep(3600);
+  await cursorClick(document.getElementById("btn-grid-close")); await sleep(500);
+  caption("From the lightest to the densest");
+  await demoPick("sel-den", "sparse"); await demoPick("sel-pos", "low"); await sleep(2800);
+  await demoPick("sel-den", "dense"); await demoPick("sel-pos", "high"); await sleep(3000);
   caption("");
   // 第五幕：成品——正视，镜面镜片，环绕收尾
   caption("Printed frame, standard lens, one per head");
