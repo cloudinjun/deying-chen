@@ -95,6 +95,8 @@
   .tag { position:absolute; left:0; top:0; font-size:10.5px; color:var(--text); background:rgba(255,255,255,.88); border:1px solid var(--line); padding:1px 5px; border-radius:2px; white-space:nowrap; transform:translate(10px,-50%); font-variant-numeric:tabular-nums; }
   .tag.off { display:none; }
   .tag.zone { font-size:11.5px; padding:2px 7px; }
+  /* 五官点是几何读数，不是数据：深底白字、小号大写、标在点正下方，和白底的 PDT 词区分开 */
+  .tag.landmark { background:#111; color:#fff; border:none; border-radius:0; font-size:9px; letter-spacing:.12em; text-transform:uppercase; padding:2px 6px; transform:translate(-50%, 12px); }
   body.thumb #legend, body.thumb #tags, body.thumb #probe { display:none; }
   /* 加载进度：顶部一条细线 + 左栏在加载完成前不可点 */
   #progress { position:absolute; top:0; left:0; height:2px; width:0; background:#111; transition:width .2s; z-index:5; }
@@ -861,14 +863,14 @@ async function playGeneration(mode) {
     clearProbes();
     const probes = pickProbeVertices(24, currentEntry);
     for (const pr of probes) {
-      const sp = new THREE.Sprite(markMat); sp.position.copy(pr.q).addScaledVector(pr.nv, 1.5); sp.scale.set(0.001, 0.001, 1); probeGroup.add(sp);
-      const el = document.createElement("div"); el.className = "tag" + (pr.zone ? " zone" : ""); el.innerHTML = (pr.zone && pr.value > 0) ? pr.name + " · " + tolHTML(pr.value) : pr.name; el.style.display = "none"; probeLayer.appendChild(el);
+      const sp = new THREE.Sprite(pr.landmark ? landmarkMat : markMat); sp.position.copy(pr.q).addScaledVector(pr.nv, 1.5); sp.scale.set(0.001, 0.001, 1); probeGroup.add(sp);
+      const el = document.createElement("div"); el.className = "tag" + (pr.zone ? " zone" : "") + (pr.landmark ? " landmark" : ""); el.innerHTML = (pr.zone && pr.value > 0) ? pr.name + " · " + tolHTML(pr.value) : pr.name; el.style.display = "none"; probeLayer.appendChild(el);
       probeTags.push({ el, sp, pos: sp.position.clone(), nrm: pr.nv, landmark: pr.landmark, zone: !!pr.zone });
     }
     // 1b 几何分析：先在素色头上读出五官（这是几何，不是数据）
     say("1 · Analyse — read the face from the geometry: nose, eyes, ears, cheeks, chin, back of head");
     const lm = probeTags.filter((t) => t.landmark);
-    await animate(T.plate, (e, k) => { lm.forEach((t, i) => { const ph = Math.max(0, Math.min(1, (k * (lm.length + 1) - i))); t.sp.scale.set(3.5 * ph, 3.5 * ph, 1); t.el.style.display = ph > 0.6 ? "" : "none"; }); }, alive);
+    await animate(T.plate, (e, k) => { lm.forEach((t, i) => { const ph = Math.max(0, Math.min(1, (k * (lm.length + 1) - i))); t.sp.scale.set(7.5 * ph, 7.5 * ph, 1); t.el.style.display = ph > 0.6 ? "" : "none"; }); }, alive);
     if (!alive()) return;
     await animate(700, () => {}, alive); if (!alive()) return;
     // 1c 数据分析：压力耐受图从头顶擦入，再按分区给出 tolerant / moderate / sensitive
@@ -1178,6 +1180,15 @@ function ringTexture(fill, stroke) {
 }
 const plateMat = new THREE.SpriteMaterial({ map: ringTexture("rgba(255,255,255,0.95)", "#111"), depthTest: true, depthWrite: false, transparent: true });   // 开深度测试：被镜片 / 镜框挡住的落点不透出来
 const markMat = new THREE.SpriteMaterial({ map: ringTexture("#111", "#111"), depthTest: false, depthWrite: false, transparent: true, opacity: 0.8 });
+// 五官定位点：空心圈 + 十字（测量标记的语言），和 PDT 分区的实心点区分
+function crossTexture(stroke) {
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d");
+  g.lineWidth = 5.5; g.strokeStyle = stroke;
+  g.beginPath(); g.arc(32, 32, 17, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(32, 2); g.lineTo(32, 20); g.moveTo(32, 44); g.lineTo(32, 62); g.moveTo(2, 32); g.lineTo(20, 32); g.moveTo(44, 32); g.lineTo(62, 32); g.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const landmarkMat = new THREE.SpriteMaterial({ map: crossTexture("#111"), depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 });
 const headTree = (() => {
   // 头顶点的最近邻查找：按 8 mm 网格分桶，给落点取法线和数值
   const pos = headGeo.attributes.position, nrm = headGeo.attributes.normal, cell = 8, buckets = new Map();
