@@ -1040,10 +1040,27 @@ async function loadVariant() {
   status.textContent = "up to date";
 }
 document.getElementById("sel-pos").addEventListener("change", () => { loadVariant(); writeUrlState(); });
+async function ensureVariantCached(key) {
+  // 只把几何载进缓存，不换场景——换压力图前先预载，之后 loadVariant 命中缓存就是同步换
+  if (!manifest || variantCache[key]) return;
+  const entry = manifest.variants[key]; if (!entry) return;
+  const loads = [loadGLB("variants/" + key)];
+  if (entry.has_lens) loads.push(loadGLB("variants/" + key + "__lens"));
+  if (entry.has_bead) loads.push(loadGLB("variants/" + key + "__bead"));
+  const results = await Promise.all(loads);
+  const set = { frame: firstMesh(results[0]).geometry }; set.frame.computeVertexNormals();
+  let ri = 1;
+  if (entry.has_lens) { set.lens = firstMesh(results[ri++]).geometry; set.lens.computeVertexNormals(); }
+  if (entry.has_bead) { set.bead = firstMesh(results[ri++]).geometry; set.bead.computeVertexNormals(); }
+  if (!variantCache[key]) variantCache[key] = set;
+}
 document.getElementById("sel-map").addEventListener("change", async () => {
-  // 换压力图：头上色跟着换，顺手打开 Pressure map 显示，再载对应镜框
+  // 换压力图：先把新镜框载进缓存，再在同一帧里换头色 + 换镜框（否则旧镜框和旧落点词会在新压力图上停一下）
   if (!document.getElementById("chk-pdt").checked) setCheck("chk-pdt", true);
-  await applyPdtMap(document.getElementById("sel-map").value);
+  const key = document.getElementById("sel-map").value;
+  status.textContent = "loading " + key + " …";
+  await Promise.all([ensureVariantCached(variantKey()), loadPdtMap(key)]);
+  await applyPdtMap(key);
   loadVariant(); writeUrlState();
 });
 document.getElementById("sel-den").addEventListener("change", () => { loadVariant(); writeUrlState(); });
