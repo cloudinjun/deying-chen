@@ -93,7 +93,7 @@
   #probe.on { display:block; }
   #tags, #probetags { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
   /* 解释环节的字幕：一行，舞台底部居中，淡入淡出 */
-  #caption { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); max-width:70%; text-align:center; font-size:12.5px; color:var(--text);
+  #caption { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); max-width:70%; text-align:center; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
     letter-spacing:.01em; opacity:0; transition:opacity .35s; pointer-events:none; white-space:nowrap; }
   #caption.on { opacity:1; }
   #curtain { position:absolute; inset:0; background:#fff; z-index:200; display:none; }
@@ -872,7 +872,27 @@ function animate(ms, fn, alive) {
   });
 }
 const captionEl = document.getElementById("caption");
-function caption(text) { if (!text) { captionEl.classList.remove("on"); return; } captionEl.textContent = text; captionEl.classList.add("on"); }
+// 字幕只留短标题（她说整句像噪音）：按关键词把各段的说明句映射成 2–4 个词
+const CAPTION_SHORT = [
+  [/read the face|found by its own rule|one point per feature|search box|geometry first/i, "Facial features"],
+  [/colour it by pressure|pressure tolerance/i, "Pressure tolerance"],
+  [/how each region reacts/i, "Tolerance by region"],
+  [/rank the skin|take the best candidate|back support set|support points on the most/i, "Support points"],
+  [/from the eyes outward/i, "Ring path"],
+  [/profile is swept|seal against the face/i, "Seal ring"],
+  [/search for each other|shortest routes/i, "Support paths"],
+  [/swept along every path|triangular profile/i, "Members"],
+  [/lofted|fused/i, "Solid"],
+  [/standard lens/i, "Standard lens"],
+  [/^One head/i, "One head · support points × spacing"],
+  [/^Five heads/i, "Five heads · 70 mm"],
+];
+function caption(text) {
+  if (!text) { captionEl.classList.remove("on"); return; }
+  let t = text; for (const [re, short] of CAPTION_SHORT) if (re.test(text)) { t = short; break; }
+  if (captionEl.textContent !== t) captionEl.textContent = t;
+  captionEl.classList.add("on");
+}
 // 截面标记：她的三角截面（底边贴皮肤、尖朝外），放样时沿最长的一条支撑路径走
 const profileMarker = new Line2(new LineGeometry(), new LineMaterial({ color: 0x111111, linewidth: 2, worldUnits: false }));
 profileMarker.material.resolution.set(renderer.domElement.width, renderer.domElement.height); profileMarker.visible = false; root.add(profileMarker);   // branchMat 在后面才定义，分辨率各自设
