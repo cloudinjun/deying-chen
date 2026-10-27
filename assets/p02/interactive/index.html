@@ -114,7 +114,8 @@
   body.loading #views, body.loading #readout { opacity:.35; }
   #toast { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); background:#111; color:#fff; font-size:11px; padding:6px 12px; border-radius:2px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.on { opacity:1; }
-  body.demo #sig, body.demo #views, body.demo #toast, body.demo #legend { display:none; }
+  body.demo #sig, body.demo #views, body.demo #toast, body.demo #legend, body.demo #panel { display:none; }
+  body.demo #app { grid-template-columns:1fr; }
   /* 缩略图模式（作品集页 ?thumb=1）：只留三维视图，面板与控件全部隐藏 */
   body.thumb #panel, body.thumb #views, body.thumb #readout, body.thumb #toast { display:none; }
   body.thumb #app { grid-template-columns:1fr; grid-template-rows:1fr; }
@@ -1117,15 +1118,16 @@ async function ensureVariantCached(key) {
   if (entry.has_bead) { set.bead = firstMesh(results[ri++]).geometry; set.bead.computeVertexNormals(); }
   if (!variantCache[key]) variantCache[key] = set;
 }
-document.getElementById("sel-map").addEventListener("change", async () => {
+async function switchMap(key) {
   // 换压力图：先把新镜框载进缓存，再在同一帧里换头色 + 换镜框（否则旧镜框和旧落点词会在新压力图上停一下）
   if (!document.getElementById("chk-pdt").checked) setCheck("chk-pdt", true);
-  const key = document.getElementById("sel-map").value;
+  document.getElementById("sel-map").value = key;
   status.textContent = "loading " + key + " …";
   await Promise.all([ensureVariantCached(variantKey()), loadPdtMap(key)]);
   await applyPdtMap(key);
-  loadVariant(); writeUrlState();
-});
+  await loadVariant(); writeUrlState();
+}
+document.getElementById("sel-map").addEventListener("change", () => { switchMap(document.getElementById("sel-map").value); });
 
 // 九宫格：行 = 后脑支撑位置，列 = 疏密；每格用同一台相机离屏渲染一次
 async function renderGrid() {
@@ -1921,8 +1923,9 @@ async function demoProbeSweep() {
 }
 async function demoView(name) { await cursorClick(document.querySelector('#views button[data-view="' + name + '"]')); }
 async function runDemo() {
-  // 引子（约 20 s，无光标）：解释生成逻辑；主体（约 40 s）：光标操作软件
+  // 引子（约 20 s）：解释生成逻辑；主体（约 35 s）：参数扫掠直接切成品；全程无 UI 无光标
   document.body.classList.add("demo", "nocursor");
+  resize();
   window.__demoDone = false;
   closeDropdowns();
   suppressRegen = true;
@@ -1940,46 +1943,29 @@ async function runDemo() {
   document.body.classList.remove("predemo");
   await intro;
   controls.autoRotate = false;
-  // 主体：操作这个软件——光标按一个用户真实的使用顺序把功能用一遍。分析 / 生成动画只在引子里出现一次，
-  // 之后改参数直接换成品（关掉重生成动画）
-  await sleep(400);
+  // 主体：纯技术演示，无 UI 无光标——参数扫掠直接切成品：支撑点数 → 间距 → 后脑支撑 → 同参数换五个人头 → 成品镜头
   suppressRegen = true;
-  document.body.classList.remove("nocursor");
-  const btn = (id) => document.getElementById(id);
-  caption("Pick whose head to fit");
-  await demoPick("sel-map", "p20"); await sleep(1300);
-  caption("Hover the head to read its tolerance");
-  await demoProbeSweep();
-  caption("Layers: scan points, pressure map, anchors");
-  await demoCheck("chk-head"); await sleep(900); await demoCheck("chk-head"); await sleep(200);
-  await demoCheck("chk-pdt"); await sleep(900); await demoCheck("chk-pdt"); await sleep(300);
-  caption("Back support: where the structure anchors behind the head");
-  await demoPick("sel-pos", "high"); await sleep(1300);
-  caption("Support points and spacing: drag, it snaps to a solved structure");
-  await demoSlide("count", 9); await sleep(900); await demoSlide("dist", 45); await sleep(1100);
-  caption("Views");
-  await demoView("front"); await sleep(750); await demoView("side"); await sleep(750); await demoView("top"); await sleep(750); await demoView("iso"); await sleep(450);
-  caption("Finish and lens");
-  await demoPick("finish", "metal"); await sleep(900); await demoPick("tint", "mirror"); await sleep(1000);
-  caption("Seal ring: the contact line on the skin");
-  await demoCheck("chk-seal"); await sleep(1300); await demoCheck("chk-seal"); await sleep(300);
-  caption("All nine structures for this head");
-  await cursorClick(btn("btn-grid")); await sleep(2600);
-  await cursorClick(btn("btn-grid-close")); await sleep(400);
-  caption("One-page product sheet");
-  await cursorClick(btn("btn-sheet")); await sleep(2200);
-  await cursorClick(btn("btn-grid-close")); await sleep(400);
-  caption("Another person, the lightest structure");
-  await demoPick("sel-map", "p15"); await sleep(1200);
-  await demoSlide("count", 3); await demoPick("sel-pos", "low"); await sleep(1400);
-  caption("Reset");
-  await cursorClick(btn("btn-reset")); await sleep(1400);
-  suppressRegen = false;
-  caption("");
-  document.body.classList.add("nocursor");
-  controls.autoRotate = true; controls.autoRotateSpeed = 0.9; await sleep(3000);
+  const pureVariant = async (count, dist, pos) => { document.getElementById("sel-pos").value = pos; sliderState.count = count; sliderState.dist = dist; snapSliders(); await loadVariant(); writeUrlState(); };
+  await sleep(500);
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
+  caption("Support points 3 · 5 · 7 · 9 — spacing 95 mm");
+  for (const c of [3, 5, 7, 9]) { await pureVariant(c, 95, "mid"); await sleep(1200); }
+  caption("Spacing 45 · 70 · 95 · 130 mm — 7 support points");
+  for (const d of [45, 70, 95, 130]) { await pureVariant(7, d, "mid"); await sleep(1200); }
+  caption("Back support low · mid · high — 6 points · 90 mm");
+  for (const pz of ["low", "mid", "high"]) { await pureVariant(6, 90, pz); await sleep(1200); }
+  caption("Same parameters on five heads — 7 points · 70 mm");
+  await pureVariant(7, 70, "mid"); await sleep(1300);
+  for (const k of ["mean", "male", "p20", "p15"]) { await switchMap(k); await sleep(1300); }
   controls.autoRotate = false;
-  await sleep(300);
+  caption("Printed frame, standard lens, one per head");
+  setView("front", true); await sleep(1300);
+  setSelect("tint", "mirror"); await sleep(1400);
+  setView("iso", true); await sleep(800);
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.9; await sleep(3500);
+  controls.autoRotate = false;
+  caption(""); await sleep(300);
+  suppressRegen = false;
   window.__demoDone = true;
   document.body.classList.remove("demo", "nocursor");
 }
