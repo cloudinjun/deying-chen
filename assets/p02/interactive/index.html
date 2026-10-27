@@ -115,7 +115,7 @@
   #toast { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); background:#111; color:#fff; font-size:11px; padding:6px 12px; border-radius:2px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.on { opacity:1; }
   body.demo #sig, body.demo #views, body.demo #toast, body.demo #legend, body.demo #panel, body.demo #readout { display:none; }
-  .tag.grid { background:none; border:none; font-size:11px; color:var(--muted); transform:translate(-50%, -50%); letter-spacing:.02em; }
+  .tag.grid { background:none; border:none; font-size:11.5px; color:var(--text); transform:translate(-50%, -50%); letter-spacing:.04em; }
   body.demo #app { grid-template-columns:1fr; }
   /* 缩略图模式（作品集页 ?thumb=1）：只留三维视图，面板与控件全部隐藏 */
   body.thumb #panel, body.thumb #views, body.thumb #readout, body.thumb #toast { display:none; }
@@ -1934,11 +1934,11 @@ function clearGridScene() { while (gridGroup.children.length) gridGroup.remove(g
 async function headColorsFor(key) { const m = await loadPdtMap(key); return m.head; }
 let headGridGeo = null;
 function trimmedHeadGeo(colorAttr) {
-  // 网格里的头去掉脖子（只留 z ≥ −95 的三角形），行距才能收紧；颜色按该压力图
+  // 网格里的头去掉脖子（只留 z ≥ −80 的三角形，下巴以下几乎不留），行间才不会叠；颜色按该压力图
   if (!headGridGeo) {
     const pos = headGeo.attributes.position, idx = headGeo.index, keep = [];
-    if (idx) { for (let i = 0; i < idx.count; i += 3) { const a = idx.getX(i), b = idx.getX(i + 1), c = idx.getX(i + 2); if (pos.getZ(a) >= -95 && pos.getZ(b) >= -95 && pos.getZ(c) >= -95) keep.push(a, b, c); } headGridGeo = headGeo.clone(); headGridGeo.setIndex(keep); }
-    else { for (let i = 0; i < pos.count; i += 3) { if (pos.getZ(i) >= -95 && pos.getZ(i + 1) >= -95 && pos.getZ(i + 2) >= -95) keep.push(i, i + 1, i + 2); } headGridGeo = headGeo.clone(); headGridGeo.setIndex(keep); }
+    if (idx) { for (let i = 0; i < idx.count; i += 3) { const a = idx.getX(i), b = idx.getX(i + 1), c = idx.getX(i + 2); if (pos.getZ(a) >= -80 && pos.getZ(b) >= -80 && pos.getZ(c) >= -80) keep.push(a, b, c); } headGridGeo = headGeo.clone(); headGridGeo.setIndex(keep); }
+    else { for (let i = 0; i < pos.count; i += 3) { if (pos.getZ(i) >= -80 && pos.getZ(i + 1) >= -80 && pos.getZ(i + 2) >= -80) keep.push(i, i + 1, i + 2); } headGridGeo = headGeo.clone(); headGridGeo.setIndex(keep); }
   }
   const g = headGridGeo.clone(); g.setAttribute("color", colorAttr); return g;
 }
@@ -1954,6 +1954,20 @@ function makeCell(set, headColorAttr, x, z, full, phase) {
   for (const m of parts) { m.position.set(-headPivot.x, -headPivot.y, 0); g.add(m); }
   g.rotation.z = phase || 0; g.userData.spin = 0.38;   // 每格自转（弧度 / 秒），各自起始角度不同
   gridGroup.add(g); return g;
+}
+// 邻居平滑切入：各格从 0 按列错落长到 1；换组时整组缩回
+async function growCells(cells, ms, alive) {
+  const n = Math.max(1, cells.length);
+  for (const g of cells) g.scale.setScalar(0.001);
+  for (const l of gridLabels) l.el.style.opacity = "0";
+  await animate(ms, (e, k) => {
+    cells.forEach((g, i) => { const kk = Math.max(0, Math.min(1, (k * 1.45 - (i / n) * 0.45))); const sc = 1 - Math.pow(1 - kk, 3); g.scale.setScalar(Math.max(0.001, sc)); });
+    for (const l of gridLabels) l.el.style.opacity = String(Math.max(0, (k - 0.5) * 2));
+  }, alive);
+  for (const g of cells) g.scale.setScalar(1);
+}
+async function shrinkCells(cells, ms, alive) {
+  await animate(ms, (e) => { for (const g of cells) g.scale.setScalar(Math.max(0.001, 1 - e)); for (const l of gridLabels) l.el.style.opacity = String(1 - e); }, alive);
 }
 let gridSpinLast = 0;
 function spinGrid(now) {
@@ -2023,7 +2037,8 @@ async function runDemo() {
   // 主体：纯技术演示，无 UI 无光标——引子结束后拉远成网格：同一个头 4 × 4（支撑点 × 间距）→ 五个头 × 4 档支撑点 → 拉近到一个头收尾
   suppressRegen = true;
   const pureVariant = async (count, dist, pos) => { document.getElementById("sel-pos").value = pos; sliderState.count = count; sliderState.dist = dist; snapSliders(); await loadVariant(); writeUrlState(); };
-  const ROWS = [3, 5, 9], DISTS = [45, 70, 95, 130], DX = 270, DZ = 268;
+  const alive = () => true;   // 演示主体不会被取消，长出 / 缩回动画直接跑完
+  const ROWS = [3, 5, 9], DISTS = [45, 70, 95, 130], DX = 270, DZ = 315;   // 整头含脖子约 273 高，行间留 40 mm
   const HEADS = ["female", "mean", "male", "p20", "p15"], HEAD_LABELS = { female: "Female mean", mean: "All mean", male: "Male mean", p20: "Participant 20", p15: "Participant 15" };
   const keyOf = (mk, c, d) => "head-" + mk + "__n-" + c + "__d-" + d;
   const mapKey0 = document.getElementById("sel-map").value;
@@ -2033,23 +2048,29 @@ async function runDemo() {
   await Promise.all(needA.map((k) => ensureVariantCached(k).catch(() => null)));
   const colorA = await headColorsFor(mapKey0);
   clearGridScene();
-  ROWS.forEach((c, r) => DISTS.forEach((d, j) => { const set = variantCache[keyOf(mapKey0, c, d)]; if (set) makeCell(set, colorA, (j - 1) * DX, -(r - 1) * DZ, false, ((j - 1) * 0.9 + (r - 1) * 0.5 + Math.PI * 4) % (Math.PI * 2)); }));
-  DISTS.forEach((d, j) => addGridLabel(d + " mm", (j - 1) * DX, center.y, DZ + 150));
+  ROWS.forEach((c, r) => DISTS.forEach((d, j) => { const set = variantCache[keyOf(mapKey0, c, d)]; if (set) makeCell(set, colorA, (j - 1) * DX, -(r - 1) * DZ, true, ((j - 1) * 0.9 + (r - 1) * 0.5 + Math.PI * 4) % (Math.PI * 2)); }));
+  DISTS.forEach((d, j) => addGridLabel(d + " mm", (j - 1) * DX, center.y, DZ + 195));
   ROWS.forEach((c, r) => addGridLabel(c + " points", -DX - 190, center.y, -(r - 1) * DZ + 20));
-  hideMain(true); gridGroup.visible = true;
-  caption("One head — support points down, spacing across");
-  gridCamera(0.5 * DX, -0.5 * DZ, 1950, 1800); await sleep(1800 + 4500);
+  // 原点那格接替主头、直接满尺寸；其余邻居随拉远长出
+  const originA = gridGroup.children.find((g) => Math.abs(g.position.x - headPivot.x) < 1 && Math.abs(g.position.z) < 1);
+  const othersA = gridGroup.children.filter((g) => g !== originA);
+  hideMain(true); gridGroup.visible = true; if (originA) originA.scale.setScalar(1);
+  caption("");   // 网格阶段不要底部标题（会压到第三排脖子），行列标签已说明
+  gridCamera(80, 20, 1950, 1800); await growCells(othersA, 1500, alive); if (!alive()) return;
+  await sleep(4300);
   // 网格 B：列 = 五个人头，行 = 支撑点数，间距 70 mm；female 列在原点
   const needB = []; for (const h of HEADS) for (const c of ROWS) needB.push(keyOf(h, c, 70));
   await Promise.all(needB.map((k) => ensureVariantCached(k).catch(() => null)));
   const colors = {}; for (const h of HEADS) colors[h] = await headColorsFor(h);
+  await shrinkCells(gridGroup.children.slice(), 500, alive); if (!alive()) return;
   clearGridScene();
-  HEADS.forEach((h, j) => ROWS.forEach((c, r) => { const set = variantCache[keyOf(h, c, 70)]; if (set) makeCell(set, colors[h], j * DX, -(r - 1) * DZ, false, (j * 0.9 + (r - 1) * 0.5 + Math.PI * 4) % (Math.PI * 2)); }));
-  HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, DZ + 150));
+  HEADS.forEach((h, j) => ROWS.forEach((c, r) => { const set = variantCache[keyOf(h, c, 70)]; if (set) makeCell(set, colors[h], j * DX, -(r - 1) * DZ, true, (j * 0.9 + (r - 1) * 0.5 + Math.PI * 4) % (Math.PI * 2)); }));
+  HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, DZ + 195));
   ROWS.forEach((c, r) => addGridLabel(c + " points", -190, center.y, -(r - 1) * DZ + 20));
   gridGroup.visible = true;
-  caption("Five heads — the same settings in every row, spacing 70 mm");
-  gridCamera(2 * DX, -0.5 * DZ, 2050, 1400); await sleep(1400 + 4500);
+  caption("");
+  gridCamera(490, 20, 1950, 1400); await growCells(gridGroup.children.slice(), 1300, alive); if (!alive()) return;
+  await sleep(4300);
   // 结尾：不推近，整排头集体自转再多停一会儿，淡出
   await sleep(3000);
   caption(""); await sleep(600);
