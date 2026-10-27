@@ -114,7 +114,8 @@
   body.loading #views, body.loading #readout { opacity:.35; }
   #toast { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); background:#111; color:#fff; font-size:11px; padding:6px 12px; border-radius:2px; opacity:0; transition:opacity .2s; pointer-events:none; }
   #toast.on { opacity:1; }
-  body.demo #sig, body.demo #views, body.demo #toast, body.demo #legend, body.demo #panel { display:none; }
+  body.demo #sig, body.demo #views, body.demo #toast, body.demo #legend, body.demo #panel, body.demo #readout { display:none; }
+  .tag.grid { background:none; border:none; font-size:11px; color:var(--muted); transform:translate(-50%, -50%); letter-spacing:.02em; }
   body.demo #app { grid-template-columns:1fr; }
   /* 缩略图模式（作品集页 ?thumb=1）：只留三维视图，面板与控件全部隐藏 */
   body.thumb #panel, body.thumb #views, body.thumb #readout, body.thumb #toast { display:none; }
@@ -893,7 +894,7 @@ async function playGeneration(mode) {
   if (mode === true) mode = "full"; if (mode === false) mode = "short";
   const my = ++genToken;
   const alive = () => my === genToken;
-  const T = mode === "intro" ? { hold: 1, sel: 1600, rank: 500, search: 460, pick: 220, pickOut: 300, scan: 1100, probe: 1200, wipe: 1000, ringPath: 1300, ringTube: 900, plate: 600, line: 1300, tube: 1300, fuse: 1200, lens: 700 }
+  const T = mode === "intro" ? { hold: 1, sel: 1600, rank: 500, search: 460, pick: 220, pickOut: 300, scan: 1800, probe: 1200, wipe: 1000, ringPath: 1300, ringTube: 900, plate: 600, line: 1300, tube: 1300, fuse: 1200, lens: 700 }
           : mode === "full" ? { hold: 0, rank: 400, search: 240, pick: 180, pickOut: 250, ringPath: 500, ringTube: 500, plate: 500, line: 600, tube: 1000, fuse: 900, lens: 500 }
           : { hold: 0, ringPath: 250, ringTube: 250, plate: 250, line: 300, tube: 500, fuse: 500, lens: 300 };
   const say = (t) => { if (mode === "intro") caption(t); };
@@ -1721,6 +1722,11 @@ function refreshAnchorTags() {
 const _wp = new THREE.Vector3(), _wn = new THREE.Vector3(), _cd = new THREE.Vector3();
 const _wc = new THREE.Vector3();
 function placeTags() {
+  // 网格对比的行列标签
+  if (gridLabels.length) {
+    const r = renderer.domElement.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    for (const g of gridLabels) { _wp.copy(g.pos); root.localToWorld(_wp); _wp.project(camera); g.el.style.left = ((_wp.x + 1) / 2 * r.width + (r.left - sr.left)) + "px"; g.el.style.top = ((1 - _wp.y) / 2 * r.height + (r.top - sr.top)) + "px"; }
+  }
   // 测点标签（分析阶段）
   if (probeTags.length) {
     const r = renderer.domElement.getBoundingClientRect(), sr = stage.getBoundingClientRect();
@@ -1895,6 +1901,35 @@ async function demoPick(selectId, value) {
   cursorPulse(); await sleep(110);
   items[target].click(); await sleep(300);
 }
+// ---- 演示：拉远成网格对比。每格 = 头（该压力图上色）+ 镜框 + 镜片 + 固定圈 的克隆，排在模型坐标 x（列）/ −z（行）上 ----
+const gridGroup = new THREE.Group(); gridGroup.visible = false; root.add(gridGroup);
+let gridLabels = [];
+function clearGridScene() { while (gridGroup.children.length) gridGroup.remove(gridGroup.children[0]); for (const g of gridLabels) g.el.remove(); gridLabels = []; gridGroup.visible = false; }
+async function headColorsFor(key) { const m = await loadPdtMap(key); return m.head; }
+let headGridGeo = null;
+function trimmedHeadGeo(colorAttr) {
+  // 网格里的头去掉脖子（只留 z ≥ −95 的三角形），行距才能收紧；颜色按该压力图
+  if (!headGridGeo) {
+    const pos = headGeo.attributes.position, idx = headGeo.index, keep = [];
+    if (idx) { for (let i = 0; i < idx.count; i += 3) { const a = idx.getX(i), b = idx.getX(i + 1), c = idx.getX(i + 2); if (pos.getZ(a) >= -95 && pos.getZ(b) >= -95 && pos.getZ(c) >= -95) keep.push(a, b, c); } headGridGeo = headGeo.clone(); headGridGeo.setIndex(keep); }
+    else { for (let i = 0; i < pos.count; i += 3) { if (pos.getZ(i) >= -95 && pos.getZ(i + 1) >= -95 && pos.getZ(i + 2) >= -95) keep.push(i, i + 1, i + 2); } headGridGeo = headGeo.clone(); headGridGeo.setIndex(keep); }
+  }
+  const g = headGridGeo.clone(); g.setAttribute("color", colorAttr); return g;
+}
+function makeCell(set, headColorAttr, x, z) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  g.add(new THREE.Mesh(trimmedHeadGeo(headColorAttr), headPdtMat));
+  if (set.frame) g.add(new THREE.Mesh(set.frame, frame.material));
+  if (set.lens) g.add(new THREE.Mesh(set.lens, lens.material));
+  if (set.bead) g.add(new THREE.Mesh(set.bead, bead.material));
+  gridGroup.add(g); return g;
+}
+function addGridLabel(text, x, y, z) { const el = document.createElement("div"); el.className = "tag grid"; el.textContent = text; probeLayer.appendChild(el); gridLabels.push({ el, pos: new THREE.Vector3(x, y, z) }); }
+const mainObjs = [frame, lens, bead, headSolid, anchorGroup]; let mainVis = null;
+function hideMain(flag) { if (flag) { mainVis = mainObjs.map((o) => o.visible); for (const o of mainObjs) o.visible = false; tagLayer.style.opacity = "0"; } else if (mainVis) { mainObjs.forEach((o, i) => { o.visible = mainVis[i]; }); mainVis = null; tagLayer.style.opacity = ""; } }
+// 网格相机：目标 = 网格中心（模型 x / z 偏移），从前左上方看，距离按网格大小给
+const GRID_DIR = new THREE.Vector3(-0.35, 0.25, 0.9).normalize();
+function gridCamera(cx, cz, dist, dur) { const target = viewTarget.clone().add(new THREE.Vector3(cx, cz, 0)); tweenCamera(target.clone().addScaledVector(GRID_DIR, dist), target, dur); }
 async function demoSlide(axis, target) {
   // 光标走到圆点，按下，拖到目标刻度（拖的过程只动视觉，松手时吸附并换成品）
   const nb = nbars[axis]; const r = nb.track.getBoundingClientRect();
@@ -1937,34 +1972,58 @@ async function runDemo() {
   setView("iso", false);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.6;
   cancelGeneration();
-  // 白幕多停 0.8 s：录屏按 0.5 s 轮询到 demo 开始再裁剪，这样裁剪点一定落在白幕内，0:00 不会露出扫描进行到一半的帧
-  await sleep(800);
+  // 白幕多停 1.2 s：录屏按 0.5 s 轮询到 demo 开始、裁剪点 +0.15 s、再 0.4 s 从白淡入——淡入结束后才揭幕，扫描从零开始能看全
+  await sleep(1200);
   const intro = playGeneration("intro");          // 同步前奏已把舞台收成起始状态，再揭白幕
   document.body.classList.remove("predemo");
   await intro;
   controls.autoRotate = false;
-  // 主体：纯技术演示，无 UI 无光标——参数扫掠直接切成品：支撑点数 → 间距 → 后脑支撑 → 同参数换五个人头 → 成品镜头
+  // 主体：纯技术演示，无 UI 无光标——引子结束后拉远成网格：同一个头 4 × 4（支撑点 × 间距）→ 五个头 × 4 档支撑点 → 拉近到一个头收尾
   suppressRegen = true;
   const pureVariant = async (count, dist, pos) => { document.getElementById("sel-pos").value = pos; sliderState.count = count; sliderState.dist = dist; snapSliders(); await loadVariant(); writeUrlState(); };
+  const COUNTS = [3, 5, 7, 9], DISTS = [45, 70, 95, 130], DX = 270, DZ = 265;
+  const HEADS = ["female", "mean", "male", "p20", "p15"], HEAD_LABELS = { female: "Female mean", mean: "All mean", male: "Male mean", p20: "Participant 20", p15: "Participant 15" };
+  const keyOf = (mk, c, d) => "head-" + mk + "__n-" + c + "__d-" + d;
+  const mapKey0 = document.getElementById("sel-map").value;
   await sleep(500);
-  controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
-  caption("Support points 3 · 5 · 7 · 9 — spacing 95 mm");
-  for (const c of [3, 5, 7, 9]) { await pureVariant(c, 95, "mid"); await sleep(1200); }
-  caption("Spacing 45 · 70 · 95 · 130 mm — 7 support points");
-  for (const d of [45, 70, 95, 130]) { await pureVariant(7, d, "mid"); await sleep(1200); }
-  caption("Back support low · mid · high — 6 points · 90 mm");
-  for (const pz of ["low", "mid", "high"]) { await pureVariant(6, 90, pz); await sleep(1200); }
-  caption("Same parameters on five heads — 7 points · 70 mm");
-  await pureVariant(7, 70, "mid"); await sleep(1300);
-  for (const k of ["mean", "male", "p20", "p15"]) { await switchMap(k); await sleep(1300); }
-  controls.autoRotate = false;
+  // 网格 A：同一个头，支撑点（行）× 间距（列）
+  const needA = []; for (const c of COUNTS) for (const d of DISTS) needA.push(keyOf(mapKey0, c, d));
+  await Promise.all(needA.map((k) => ensureVariantCached(k).catch(() => null)));
+  const colorA = await headColorsFor(mapKey0);
+  clearGridScene();
+  COUNTS.forEach((c, r) => DISTS.forEach((d, j) => { const set = variantCache[keyOf(mapKey0, c, d)]; if (set) makeCell(set, colorA, j * DX, -r * DZ); }));
+  DISTS.forEach((d, j) => addGridLabel(d + " mm", j * DX, center.y, 165));
+  COUNTS.forEach((c, r) => addGridLabel(String(c), -175, center.y, -r * DZ + 20));
+  hideMain(true); gridGroup.visible = true;
+  caption("One head, sixteen structures — support points down, spacing across");
+  gridCamera(1.5 * DX, -1.5 * DZ, 2100, 1600); await sleep(1600 + 4200);
+  // 网格 B：五个头（列）× 支撑点（行），间距 70 mm
+  const needB = []; for (const h of HEADS) for (const c of COUNTS) needB.push(keyOf(h, c, 70));
+  await Promise.all(needB.map((k) => ensureVariantCached(k).catch(() => null)));
+  const colors = {}; for (const h of HEADS) colors[h] = await headColorsFor(h);
+  clearGridScene();
+  HEADS.forEach((h, j) => COUNTS.forEach((c, r) => { const set = variantCache[keyOf(h, c, 70)]; if (set) makeCell(set, colors[h], j * DX, -r * DZ); }));
+  HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, 165));
+  COUNTS.forEach((c, r) => addGridLabel(String(c), -175, center.y, -r * DZ + 20));
+  gridGroup.visible = true;
+  caption("Five heads, the same four settings — spacing 70 mm");
+  gridCamera(2 * DX, -1.5 * DZ, 2150, 1400); await sleep(1400 + 4200);
+  // 拉近到 Participant 15 · 7 点那一格，再无缝换成主模型（相机整体平移回原点）
   caption("Printed frame, standard lens, one per head");
+  const cx = 4 * DX, cz = -2 * DZ;
+  gridCamera(cx, cz, 700, 1500); await sleep(1600);
+  await switchMap("p15"); await pureVariant(7, 70, "mid");
+  headSolid.geometry = trimmedHeadGeo(colors.p15);
+  clearGridScene(); hideMain(false);
+  const off = new THREE.Vector3(cx, cz, 0); camera.position.sub(off); controls.target.sub(off); controls.update();
+  await sleep(600);
   setView("front", true); await sleep(1300);
   setSelect("tint", "mirror"); await sleep(1400);
   setView("iso", true); await sleep(800);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.9; await sleep(3500);
   controls.autoRotate = false;
   caption(""); await sleep(300);
+  headSolid.geometry = headGeo;
   suppressRegen = false;
   window.__demoDone = true;
   document.body.classList.remove("demo", "nocursor");
