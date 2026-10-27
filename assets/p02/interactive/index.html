@@ -93,7 +93,10 @@
   #probe.on { display:block; }
   #tags, #probetags { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
   /* 解释环节的字幕：一行，舞台底部居中，淡入淡出 */
-  #caption { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); max-width:70%; text-align:center; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+  #caption b { display:block; font-size:11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--text); }
+  #caption span { display:block; margin-top:5px; font-size:11.5px; color:var(--muted); }
+  body.demo #caption { left:28px; bottom:auto; top:22px; transform:none; text-align:left; max-width:40%; }   /* 演示里字幕一律左上角，不压模型 */
+  #caption { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); max-width:70%; text-align:center; font-size:11px; color:var(--muted);
     letter-spacing:.01em; opacity:0; transition:opacity .35s; pointer-events:none; white-space:nowrap; }
   #caption.on { opacity:1; }
   #curtain { position:absolute; inset:0; background:#fff; z-index:200; display:none; }
@@ -873,24 +876,27 @@ function animate(ms, fn, alive) {
 }
 const captionEl = document.getElementById("caption");
 // 字幕只留短标题（她说整句像噪音）：按关键词把各段的说明句映射成 2–4 个词
+// 每个阶段：小标题（小号大写）+ 一句解说（灰色短句）
 const CAPTION_SHORT = [
-  [/read the face|found by its own rule|one point per feature|search box|geometry first/i, "Facial features"],
-  [/colour it by pressure|pressure tolerance/i, "Pressure tolerance"],
-  [/how each region reacts/i, "Tolerance by region"],
-  [/rank the skin|take the best candidate|back support set|support points on the most/i, "Support points"],
-  [/from the eyes outward/i, "Ring path"],
-  [/profile is swept|seal against the face/i, "Seal ring"],
-  [/search for each other|shortest routes/i, "Support paths"],
-  [/swept along every path|triangular profile/i, "Members"],
-  [/lofted|fused/i, "Solid"],
-  [/standard lens/i, "Standard lens"],
-  [/^One head/i, "One head · support points × spacing"],
-  [/^Five heads/i, "Five heads · 70 mm"],
+  [/read the face|found by its own rule|one point per feature|search box|geometry first/i, "Facial features", "Feature regions found by rules on the scanned geometry"],
+  [/colour it by pressure|pressure tolerance/i, "Pressure tolerance", "Pressure-discomfort map: red tolerant, blue sensitive"],
+  [/how each region reacts/i, "Tolerance by region", "Each region summarised into one tolerance word"],
+  [/rank the skin|take the best candidate|back support set|support points on the most/i, "Support points", "Best-scoring spots, kept a minimum distance apart"],
+  [/from the eyes outward/i, "Ring path", "Shortest path around the eyes over the skin"],
+  [/profile is swept|seal against the face/i, "Seal ring", "Profile swept along the path: the seal against the face"],
+  [/search for each other|shortest routes/i, "Support paths", "Support points joined by shortest routes over the head"],
+  [/swept along every path|triangular profile/i, "Members", "Triangular profile swept along every path"],
+  [/lofted|fused/i, "Solid", "Members fused into one body and smoothed"],
+  [/standard lens/i, "Standard lens", "A standard blank, held by a printed rim"],
+  [/^One head/i, "One head", "Support points down, spacing across"],
+  [/^Five heads/i, "Five heads", "Same settings in each row, spacing 70 mm"],
 ];
 function caption(text) {
   if (!text) { captionEl.classList.remove("on"); return; }
-  let t = text; for (const [re, short] of CAPTION_SHORT) if (re.test(text)) { t = short; break; }
-  if (captionEl.textContent !== t) captionEl.textContent = t;
+  let title = text, sub = "";
+  for (const [re, t, sb] of CAPTION_SHORT) if (re.test(text)) { title = t; sub = sb; break; }
+  const html = "<b>" + title + "</b>" + (sub ? "<span>" + sub + "</span>" : "");
+  if (captionEl.innerHTML !== html) captionEl.innerHTML = html;
   captionEl.classList.add("on");
 }
 // 截面标记：她的三角截面（底边贴皮肤、尖朝外），放样时沿最长的一条支撑路径走
@@ -2055,7 +2061,7 @@ async function runDemo() {
   const originA = gridGroup.children.find((g) => Math.abs(g.position.x - headPivot.x) < 1 && Math.abs(g.position.z) < 1);
   const othersA = gridGroup.children.filter((g) => g !== originA);
   hideMain(true); gridGroup.visible = true; if (originA) originA.scale.setScalar(1);
-  caption("");   // 网格阶段不要底部标题（会压到第三排脖子），行列标签已说明
+  caption("One head");
   gridCamera(80, 20, 1950, 1800); await growCells(othersA, 1500, alive); if (!alive()) return;
   await sleep(4300);
   // 网格 B：列 = 五个人头，行 = 支撑点数，间距 70 mm；female 列在原点
@@ -2068,7 +2074,7 @@ async function runDemo() {
   HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, DZ + 195));
   ROWS.forEach((c, r) => addGridLabel(c + " points", -190, center.y, -(r - 1) * DZ + 20));
   gridGroup.visible = true;
-  caption("");
+  caption("Five heads");
   gridCamera(490, 20, 1950, 1400); await growCells(gridGroup.children.slice(), 1300, alive); if (!alive()) return;
   await sleep(4300);
   // 结尾：不推近，整排头集体自转再多停一会儿，淡出
