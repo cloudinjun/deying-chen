@@ -1950,7 +1950,7 @@ function addGridLabel(text, x, y, z) { const el = document.createElement("div");
 const mainObjs = [frame, lens, bead, headSolid, anchorGroup]; let mainVis = null;
 function hideMain(flag) { if (flag) { mainVis = mainObjs.map((o) => o.visible); for (const o of mainObjs) o.visible = false; tagLayer.style.opacity = "0"; } else if (mainVis) { mainObjs.forEach((o, i) => { o.visible = mainVis[i]; }); mainVis = null; tagLayer.style.opacity = ""; } }
 // 网格相机：目标 = 网格中心（模型 x / z 偏移），从前左上方看，距离按网格大小给
-const GRID_DIR = new THREE.Vector3(0, 0.06, 1).normalize();
+const GRID_DIR = new THREE.Vector3(0, 0.02, 1).normalize();
 function gridCamera(cx, cz, dist, dur) { const target = viewTarget.clone().add(new THREE.Vector3(cx, cz, 0)); tweenCamera(target.clone().addScaledVector(GRID_DIR, dist), target, dur); }
 async function demoSlide(axis, target) {
   // 光标走到圆点，按下，拖到目标刻度（拖的过程只动视觉，松手时吸附并换成品）
@@ -2007,13 +2007,13 @@ async function runDemo() {
   const HEADS = ["female", "mean", "male", "p20", "p15"], HEAD_LABELS = { female: "Female mean", mean: "All mean", male: "Male mean", p20: "Participant 20", p15: "Participant 15" };
   const keyOf = (mk, c, d) => "head-" + mk + "__n-" + c + "__d-" + d;
   const mapKey0 = document.getElementById("sel-map").value;
-  await sleep(500);
+  setView("front", true); await sleep(900);     // 先稳到正视，之后的拉远就是沿视线直线后退，不绕
   // 网格 A：同一个头，行 = 支撑点数、列 = 间距；格子 (行 1, 列 1) 放在原点，拉远时从当前的头出发
   const needA = []; for (const c of ROWS) for (const d of DISTS) needA.push(keyOf(mapKey0, c, d));
   await Promise.all(needA.map((k) => ensureVariantCached(k).catch(() => null)));
   const colorA = await headColorsFor(mapKey0);
   clearGridScene();
-  ROWS.forEach((c, r) => DISTS.forEach((d, j) => { const set = variantCache[keyOf(mapKey0, c, d)]; if (set) makeCell(set, colorA, (j - 1) * DX, -(r - 1) * DZ, false, (j * 0.9 + r * 0.5) % (Math.PI * 2)); }));
+  ROWS.forEach((c, r) => DISTS.forEach((d, j) => { const set = variantCache[keyOf(mapKey0, c, d)]; if (set) makeCell(set, colorA, (j - 1) * DX, -(r - 1) * DZ, false, ((j - 1) * 0.9 + (r - 1) * 0.5 + Math.PI * 4) % (Math.PI * 2)); }));
   DISTS.forEach((d, j) => addGridLabel(d + " mm", (j - 1) * DX, center.y, DZ + 150));
   ROWS.forEach((c, r) => addGridLabel(c + " points", -DX - 190, center.y, -(r - 1) * DZ + 20));
   hideMain(true); gridGroup.visible = true;
@@ -2024,7 +2024,7 @@ async function runDemo() {
   await Promise.all(needB.map((k) => ensureVariantCached(k).catch(() => null)));
   const colors = {}; for (const h of HEADS) colors[h] = await headColorsFor(h);
   clearGridScene();
-  HEADS.forEach((h, j) => ROWS.forEach((c, r) => { const set = variantCache[keyOf(h, c, 70)]; if (set) makeCell(set, colors[h], j * DX, -(r - 1) * DZ, false, (j * 0.9 + r * 0.5) % (Math.PI * 2)); }));
+  HEADS.forEach((h, j) => ROWS.forEach((c, r) => { const set = variantCache[keyOf(h, c, 70)]; if (set) makeCell(set, colors[h], j * DX, -(r - 1) * DZ, false, (j * 0.9 + (r - 1) * 0.5 + Math.PI * 4) % (Math.PI * 2)); }));
   HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, DZ + 150));
   ROWS.forEach((c, r) => addGridLabel(c + " points", -190, center.y, -(r - 1) * DZ + 20));
   gridGroup.visible = true;
