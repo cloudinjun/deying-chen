@@ -1922,14 +1922,27 @@ function trimmedHeadGeo(colorAttr) {
   }
   const g = headGridGeo.clone(); g.setAttribute("color", colorAttr); return g;
 }
-function makeCell(set, headColorAttr, x, z, full) {
-  const g = new THREE.Group(); g.position.set(x, 0, z);
+let headPivot = null;   // 头的旋转轴（模型 x / y 的包围盒中心）
+function makeCell(set, headColorAttr, x, z, full, phase) {
+  if (!headPivot) { headGeo.computeBoundingBox(); const b = headGeo.boundingBox; headPivot = new THREE.Vector3((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, 0); }
+  const g = new THREE.Group(); g.position.set(x + headPivot.x, headPivot.y, z);
   const hg = full ? headGeo.clone() : trimmedHeadGeo(headColorAttr); if (full) hg.setAttribute("color", headColorAttr);
-  g.add(new THREE.Mesh(hg, headPdtMat));
-  g.userData.frame = new THREE.Mesh(set.frame || new THREE.BufferGeometry(), frame.material); g.add(g.userData.frame);
-  g.userData.lens = new THREE.Mesh(set.lens || new THREE.BufferGeometry(), lens.material); g.add(g.userData.lens);
-  g.userData.bead = new THREE.Mesh(set.bead || new THREE.BufferGeometry(), bead.material); g.add(g.userData.bead);
+  const parts = [new THREE.Mesh(hg, headPdtMat)];
+  g.userData.frame = new THREE.Mesh(set.frame || new THREE.BufferGeometry(), frame.material); parts.push(g.userData.frame);
+  g.userData.lens = new THREE.Mesh(set.lens || new THREE.BufferGeometry(), lens.material); parts.push(g.userData.lens);
+  g.userData.bead = new THREE.Mesh(set.bead || new THREE.BufferGeometry(), bead.material); parts.push(g.userData.bead);
+  for (const m of parts) { m.position.set(-headPivot.x, -headPivot.y, 0); g.add(m); }
+  g.rotation.z = phase || 0; g.userData.spin = 0.38;   // 每格自转（弧度 / 秒），各自起始角度不同
   gridGroup.add(g); return g;
+}
+let gridSpinLast = 0;
+function spinGrid(now) {
+  if (!gridGroup.visible) { gridSpinLast = now; return; }
+  const dt = Math.min(0.05, (now - gridSpinLast) / 1000); gridSpinLast = now;
+  for (const g of gridGroup.children) {
+    if (g.userData.settle) { const a = g.rotation.z; const target = Math.round(a / (Math.PI * 2)) * Math.PI * 2; g.rotation.z = a + (target - a) * Math.min(1, dt * 4); }
+    else g.rotation.z += (g.userData.spin || 0) * dt;
+  }
 }
 // 原位换件：同一格换成另一个变体的镜框 / 镜片 / 固定圈
 function swapCell(g, set) { if (!set) return; g.userData.frame.geometry = set.frame || new THREE.BufferGeometry(); g.userData.lens.geometry = set.lens || new THREE.BufferGeometry(); g.userData.bead.geometry = set.bead || new THREE.BufferGeometry(); }
@@ -1937,7 +1950,7 @@ function addGridLabel(text, x, y, z) { const el = document.createElement("div");
 const mainObjs = [frame, lens, bead, headSolid, anchorGroup]; let mainVis = null;
 function hideMain(flag) { if (flag) { mainVis = mainObjs.map((o) => o.visible); for (const o of mainObjs) o.visible = false; tagLayer.style.opacity = "0"; } else if (mainVis) { mainObjs.forEach((o, i) => { o.visible = mainVis[i]; }); mainVis = null; tagLayer.style.opacity = ""; } }
 // 网格相机：目标 = 网格中心（模型 x / z 偏移），从前左上方看，距离按网格大小给
-const GRID_DIR = new THREE.Vector3(-0.35, 0.25, 0.9).normalize();
+const GRID_DIR = new THREE.Vector3(0, 0.06, 1).normalize();
 function gridCamera(cx, cz, dist, dur) { const target = viewTarget.clone().add(new THREE.Vector3(cx, cz, 0)); tweenCamera(target.clone().addScaledVector(GRID_DIR, dist), target, dur); }
 async function demoSlide(axis, target) {
   // 光标走到圆点，按下，拖到目标刻度（拖的过程只动视觉，松手时吸附并换成品）
@@ -1990,41 +2003,40 @@ async function runDemo() {
   // 主体：纯技术演示，无 UI 无光标——引子结束后拉远成网格：同一个头 4 × 4（支撑点 × 间距）→ 五个头 × 4 档支撑点 → 拉近到一个头收尾
   suppressRegen = true;
   const pureVariant = async (count, dist, pos) => { document.getElementById("sel-pos").value = pos; sliderState.count = count; sliderState.dist = dist; snapSliders(); await loadVariant(); writeUrlState(); };
-  const COUNTS = [3, 5, 7, 9], DISTS = [45, 70, 95, 130], DX = 265;
+  const ROWS = [3, 5, 9], DISTS = [45, 70, 95, 130], DX = 270, DZ = 268;
   const HEADS = ["female", "mean", "male", "p20", "p15"], HEAD_LABELS = { female: "Female mean", mean: "All mean", male: "Male mean", p20: "Participant 20", p15: "Participant 15" };
   const keyOf = (mk, c, d) => "head-" + mk + "__n-" + c + "__d-" + d;
   const mapKey0 = document.getElementById("sel-map").value;
   await sleep(500);
-  // 一排 4 个头：横向是间距 45 → 130 mm；支撑点数在原位按 3 → 5 → 7 → 9 换
-  const needA = []; for (const c of COUNTS) for (const d of DISTS) needA.push(keyOf(mapKey0, c, d));
+  // 网格 A：同一个头，行 = 支撑点数、列 = 间距；格子 (行 1, 列 1) 放在原点，拉远时从当前的头出发
+  const needA = []; for (const c of ROWS) for (const d of DISTS) needA.push(keyOf(mapKey0, c, d));
   await Promise.all(needA.map((k) => ensureVariantCached(k).catch(() => null)));
   const colorA = await headColorsFor(mapKey0);
   clearGridScene();
-  const rowA = DISTS.map((d, j) => makeCell(variantCache[keyOf(mapKey0, 3, d)] || {}, colorA, j * DX, 0, true));
-  DISTS.forEach((d, j) => addGridLabel(d + " mm", j * DX, center.y, -175));
+  ROWS.forEach((c, r) => DISTS.forEach((d, j) => { const set = variantCache[keyOf(mapKey0, c, d)]; if (set) makeCell(set, colorA, (j - 1) * DX, -(r - 1) * DZ, false, (j * 0.9 + r * 0.5) % (Math.PI * 2)); }));
+  DISTS.forEach((d, j) => addGridLabel(d + " mm", (j - 1) * DX, center.y, DZ + 150));
+  ROWS.forEach((c, r) => addGridLabel(c + " points", -DX - 190, center.y, -(r - 1) * DZ + 20));
   hideMain(true); gridGroup.visible = true;
-  caption("Spacing 45 → 130 mm across · 3 support points");
-  gridCamera(1.5 * DX, 0, 1350, 1600); await sleep(1600 + 1500);
-  controls.autoRotate = true; controls.autoRotateSpeed = 0.35;
-  for (const c of COUNTS.slice(1)) { rowA.forEach((g, j) => swapCell(g, variantCache[keyOf(mapKey0, c, DISTS[j])])); caption("Spacing 45 → 130 mm across · " + c + " support points"); await sleep(1500); }
-  await sleep(600);
-  controls.autoRotate = false;
-  // 一排 5 个头：同一组参数（7 点 · 70 mm），镜头从左向右推过去
-  const needB = []; for (const h of HEADS) needB.push(keyOf(h, 7, 70));
+  caption("One head — support points down, spacing across");
+  gridCamera(0.5 * DX, -0.5 * DZ, 1950, 1800); await sleep(1800 + 4500);
+  // 网格 B：列 = 五个人头，行 = 支撑点数，间距 70 mm；female 列在原点
+  const needB = []; for (const h of HEADS) for (const c of ROWS) needB.push(keyOf(h, c, 70));
   await Promise.all(needB.map((k) => ensureVariantCached(k).catch(() => null)));
   const colors = {}; for (const h of HEADS) colors[h] = await headColorsFor(h);
   clearGridScene();
-  HEADS.forEach((h, j) => makeCell(variantCache[keyOf(h, 7, 70)] || {}, colors[h], j * DX, 0, true));
-  HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, -175));
+  HEADS.forEach((h, j) => ROWS.forEach((c, r) => { const set = variantCache[keyOf(h, c, 70)]; if (set) makeCell(set, colors[h], j * DX, -(r - 1) * DZ, false, (j * 0.9 + r * 0.5) % (Math.PI * 2)); }));
+  HEADS.forEach((h, j) => addGridLabel(HEAD_LABELS[h], j * DX, center.y, DZ + 150));
+  ROWS.forEach((c, r) => addGridLabel(c + " points", -190, center.y, -(r - 1) * DZ + 20));
   gridGroup.visible = true;
-  caption("Five heads, the same settings — 7 support points · 70 mm");
-  gridCamera(0.9 * DX, 0, 1150, 1); await sleep(300);
-  gridCamera(3.1 * DX, 0, 1150, 5500); await sleep(5800);
-  // 推近到 Participant 15 那一格，再无缝换成主模型（相机整体平移回原点）
+  caption("Five heads — the same settings in every row, spacing 70 mm");
+  gridCamera(2 * DX, -0.5 * DZ, 2050, 1400); await sleep(1400 + 4500);
+  // 推近到 Participant 15 · 9 点那一格，再无缝换成主模型（相机整体平移回原点；主头暂用去脖子几何）
   caption("Printed frame, standard lens, one per head");
-  const cx = 4 * DX, cz = 0;
+  const cx = 4 * DX, cz = -DZ;
+  for (const g of gridGroup.children) if (Math.abs(g.position.x - (cx + headPivot.x)) < 1 && Math.abs(g.position.z - cz) < 1) g.userData.settle = true;   // 目标格转回正角度
   gridCamera(cx, cz, 700, 1500); await sleep(1600);
-  await switchMap("p15"); await pureVariant(7, 70, "mid");
+  await switchMap("p15"); await pureVariant(9, 70, "mid");
+  headSolid.geometry = trimmedHeadGeo(colors.p15);
   clearGridScene(); hideMain(false);
   const off = new THREE.Vector3(cx, cz, 0); camera.position.sub(off); controls.target.sub(off); controls.update();
   await sleep(600);
@@ -2034,6 +2046,7 @@ async function runDemo() {
   controls.autoRotate = true; controls.autoRotateSpeed = 0.9; await sleep(3500);
   controls.autoRotate = false;
   caption(""); await sleep(300);
+  headSolid.geometry = headGeo;
   suppressRegen = false;
   window.__demoDone = true;
   await sleep(2500);                               // 录屏在 done 后还收 1 s，面板等那之后再回来，结尾不会闪出 UI
@@ -2077,7 +2090,7 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 if (THUMB) { controls.autoRotate = true; controls.autoRotateSpeed = 0.8; controls.enabled = false; }
-renderer.setAnimationLoop(() => { stepTween(performance.now()); controls.update(); renderer.render(scene, camera); placeTags(); });
+renderer.setAnimationLoop(() => { const now = performance.now(); stepTween(now); spinGrid(now); controls.update(); renderer.render(scene, camera); placeTags(); });
 window.__viewer = { setView, parts, camera, controls, renderer, scene };
 </script>
 </body>
