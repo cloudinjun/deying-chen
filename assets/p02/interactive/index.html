@@ -662,6 +662,7 @@ function variantEntries(mapKey, pos) {
   const out = []; if (!manifest) return out;
   for (const [key, e] of Object.entries(manifest.variants)) {
     const m = key.match(/^head-([^_]+)__(.*)$/); if (!m || m[1] !== mapKey) continue;
+    if (e.error || (e.faces !== undefined && !(e.faces > 0))) continue;   // 批跑失败、没有几何的格子不进刻度
     let c, d, pp;
     if (e.slider) { c = e.slider.count; d = e.slider.dist; pp = e.slider.pos || "mid"; }
     else { const mm = m[2].match(/^pos-(\w+)__den-(\w+)$/); if (!mm || !DEN_MAP[mm[2]]) continue; pp = mm[1]; c = DEN_MAP[mm[2]][0]; d = DEN_MAP[mm[2]][1]; }
