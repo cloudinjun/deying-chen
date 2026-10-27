@@ -24,6 +24,13 @@
   .row input[type=checkbox] { width:12px; height:12px; margin:0; accent-color:#111; }
   .swatch { width:8px; height:8px; border-radius:50%; border:1px solid rgba(0,0,0,.12); flex:none; }
   .row .lbl { color:var(--muted); }
+  /* 数字条：一条线 + 真实存在的刻度 + 圆点，右边是数值；拖动吸附到最近的真实变体 */
+  .nbar { display:flex; align-items:center; gap:10px; width:128px; flex:none; }
+  .nbar-track { position:relative; flex:1; height:18px; cursor:ew-resize; touch-action:none; }
+  .nbar-track::before { content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--line); }
+  .nbar-ticks span { position:absolute; top:50%; width:1px; height:5px; margin-top:-2px; background:var(--muted); }
+  .nbar-thumb { position:absolute; top:50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; background:#111; border-radius:50%; }
+  .nbar-val { font-variant-numeric:tabular-nums; min-width:42px; text-align:right; }
   select.btn { font:inherit; font-size:11px; border:1px solid var(--line); background:#fff; color:var(--text); padding:3px 6px; border-radius:2px; max-width:150px; }
   /* 自定义下拉：原生 select 隐藏只当取值用；展开列表画在页面里，录屏时能看到选项 */
   select.dd-native { display:none; }
@@ -160,12 +167,10 @@
             <option value="mid" selected>mid</option>
             <option value="high">high</option>
           </select></div>
-        <div class="row"><span class="lbl">Density</span>
-          <select id="sel-den" class="btn">
-            <option value="sparse">sparse</option>
-            <option value="mid" selected>mid</option>
-            <option value="dense">dense</option>
-          </select></div>
+        <div class="row"><span class="lbl">Supports</span>
+          <div class="nbar" id="nb-count"><div class="nbar-track"><div class="nbar-ticks"></div><div class="nbar-thumb"></div></div><span class="nbar-val">6</span></div></div>
+        <div class="row"><span class="lbl">Spacing</span>
+          <div class="nbar" id="nb-dist"><div class="nbar-track"><div class="nbar-ticks"></div><div class="nbar-thumb"></div></div><span class="nbar-val">90 mm</span></div></div>
         <div class="actions"><button class="btn" id="btn-grid">All 9</button><button class="btn" id="btn-sheet">Sheet</button></div>
       </div>
     </div>
@@ -358,13 +363,17 @@ function toast(msg) {
   t.textContent = msg; t.classList.add("on");
   clearTimeout(toast._h); toast._h = setTimeout(() => t.classList.remove("on"), 1600);
 }
-// URL 状态：?pos=mid&den=mid&tint=smoke&finish=matte&head=1&view=iso
+// 滑杆状态（支撑点数 / 最小间距），总是吸附到当前后脑档位下真实存在的变体
+const sliderState = { count: 6, dist: 90 };
+const DEN_MAP = { sparse: [3, 130], mid: [6, 90], dense: [9, 45] };   // 旧的三档疏密 = 这三组数字
+const AXIS = { count: [3, 9], dist: [45, 130] };
+// URL 状态：?pos=mid&n=6&d=90&tint=smoke&finish=matte&head=1&view=iso
 const urlState = new URLSearchParams(location.search);
 function applyUrlStateToControls() {
   const setSel = (id, v, allowed) => { if (v && allowed.includes(v)) document.getElementById(id).value = v; };
   setSel("sel-map", urlState.get("map"), ["female", "mean", "male", "p20", "p15"]);
   setSel("sel-pos", urlState.get("pos"), ["low", "mid", "high"]);
-  setSel("sel-den", urlState.get("den"), ["sparse", "mid", "dense"]);
+  if (urlState.get("n")) sliderState.count = Number(urlState.get("n")); if (urlState.get("d")) sliderState.dist = Number(urlState.get("d"));
   setSel("tint", urlState.get("tint"), ["smoke", "mirror", "clear"]);
   setSel("finish", urlState.get("finish"), ["matte", "soft", "metal"]);
   if (urlState.get("head") === "0") document.getElementById("chk-headsolid").checked = false;
@@ -377,7 +386,7 @@ function writeUrlState() {
   const p = new URLSearchParams();
   if (document.getElementById("sel-map").value !== "female") p.set("map", document.getElementById("sel-map").value);
   p.set("pos", document.getElementById("sel-pos").value);
-  p.set("den", document.getElementById("sel-den").value);
+  p.set("n", String(sliderState.count)); p.set("d", String(sliderState.dist));
   p.set("tint", document.getElementById("tint").value);
   p.set("finish", document.getElementById("finish").value);
   if (!document.getElementById("chk-headsolid").checked) p.set("head", "0");
@@ -600,7 +609,7 @@ const bind = (id, fn) => document.getElementById(id).addEventListener("change", 
 // 简短提示（hover）
 const tips = {
   "sel-pos": "Where the support network anchors on the back of the head: occiput ↔ crown",
-  "sel-den": "How many pressure plates seed the support network",
+  "nb-count": "How many support points seed the network (drag; snaps to a solved variant)", "nb-dist": "Minimum distance between support points (drag; snaps to a solved variant)",
   "chk-headsolid": "Scanned head as a translucent shell", "chk-head": "Surface sample points of the scan", "chk-pdt": "Colour the head by pressure-discomfort threshold",
   "chk-solid": "", "chk-overlay": "Lens edge sampled 400×, coloured by how deep it sits inside the frame",
   "chk-seal": "Contact ring on the skin, the seal surface", "chk-ref": "Hand-refined May 2026 version, overlaid",
@@ -648,9 +657,62 @@ function variantKeyFor(pos, den) {
   const withMap = "head-" + document.getElementById("sel-map").value + "__" + base;
   return (manifest && manifest.variants[withMap]) ? withMap : base;
 }
-function variantKey() {
-  return variantKeyFor(document.getElementById("sel-pos").value, document.getElementById("sel-den").value);
+// 当前压力图 + 后脑档位下所有真实存在的变体：{ key, count, dist }（旧的 pos/den 命名按 DEN_MAP 换算，新的滑杆变体读 entry.slider）
+function variantEntries(mapKey, pos) {
+  const out = []; if (!manifest) return out;
+  for (const [key, e] of Object.entries(manifest.variants)) {
+    const m = key.match(/^head-([^_]+)__(.*)$/); if (!m || m[1] !== mapKey) continue;
+    let c, d, pp;
+    if (e.slider) { c = e.slider.count; d = e.slider.dist; pp = e.slider.pos || "mid"; }
+    else { const mm = m[2].match(/^pos-(\w+)__den-(\w+)$/); if (!mm || !DEN_MAP[mm[2]]) continue; pp = mm[1]; c = DEN_MAP[mm[2]][0]; d = DEN_MAP[mm[2]][1]; }
+    if (pp === pos) out.push({ key, count: c, dist: d });
+  }
+  if (!out.length) for (const key of Object.keys(manifest.variants)) { const mm = key.match(/^pos-(\w+)__den-(\w+)$/); if (mm && mm[1] === pos && DEN_MAP[mm[2]]) out.push({ key, count: DEN_MAP[mm[2]][0], dist: DEN_MAP[mm[2]][1] }); }
+  return out;
 }
+// 离 (count, dist) 最近的真实变体；lockAxis 是正在拖的那条，优先精确匹配它
+function nearestVariant(pos, count, dist, lockAxis) {
+  const ents = variantEntries(document.getElementById("sel-map").value, pos); if (!ents.length) return null;
+  const nc = AXIS.count[1] - AXIS.count[0], nd = AXIS.dist[1] - AXIS.dist[0];
+  let best = null, bd = Infinity;
+  for (const e of ents) {
+    const dc = (e.count - count) / nc, dd = (e.dist - dist) / nd;
+    const sc = dc * dc * (lockAxis === "count" ? 40 : 1) + dd * dd * (lockAxis === "dist" ? 40 : 1);
+    if (sc < bd) { bd = sc; best = e; }
+  }
+  return best;
+}
+function snapSliders(lockAxis) { const e = nearestVariant(document.getElementById("sel-pos").value, sliderState.count, sliderState.dist, lockAxis); if (e) { sliderState.count = e.count; sliderState.dist = e.dist; } renderSliders(); return e; }
+function variantKey() {
+  const e = nearestVariant(document.getElementById("sel-pos").value, sliderState.count, sliderState.dist);
+  return e ? e.key : variantKeyFor(document.getElementById("sel-pos").value, "mid");
+}
+// 数字条 UI
+const nbars = {};
+function nbarSetup(id, axis) {
+  const el = document.getElementById(id), track = el.querySelector(".nbar-track"), thumb = el.querySelector(".nbar-thumb"), ticks = el.querySelector(".nbar-ticks"), val = el.querySelector(".nbar-val");
+  const lo = AXIS[axis][0], hi = AXIS[axis][1], xOf = (v) => (v - lo) / (hi - lo) * 100;
+  const render = () => {
+    const v = sliderState[axis]; thumb.style.left = xOf(v) + "%"; val.textContent = axis === "dist" ? v + " mm" : String(v);
+    const vals = [...new Set(variantEntries(document.getElementById("sel-map").value, document.getElementById("sel-pos").value).map((e) => e[axis]))].sort((a, b) => a - b);
+    ticks.innerHTML = vals.map((t) => '<span style="left:' + xOf(t) + '%"></span>').join("");
+  };
+  const pick = (clientX) => { const r = track.getBoundingClientRect(); setSlider(axis, lo + Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * (hi - lo)); };
+  let down = false;
+  track.addEventListener("pointerdown", (e) => { down = true; track.setPointerCapture(e.pointerId); pick(e.clientX); });
+  track.addEventListener("pointermove", (e) => { if (down) pick(e.clientX); });
+  track.addEventListener("pointerup", () => { down = false; }); track.addEventListener("pointercancel", () => { down = false; });
+  nbars[axis] = { el, track, thumb, val, render, lo, hi };
+}
+function renderSliders() { for (const k of Object.keys(nbars)) nbars[k].render(); }
+function setSlider(axis, v) {
+  const want = { count: sliderState.count, dist: sliderState.dist }; want[axis] = v;
+  const e = nearestVariant(document.getElementById("sel-pos").value, want.count, want.dist, axis); if (!e) return;
+  const changed = e.count !== sliderState.count || e.dist !== sliderState.dist;
+  sliderState.count = e.count; sliderState.dist = e.dist; renderSliders();
+  if (changed) { loadVariant(); writeUrlState(); }
+}
+nbarSetup("nb-count", "count"); nbarSetup("nb-dist", "dist");
 function mapLabel() { const el = document.getElementById("sel-map"); return el.options[el.selectedIndex].textContent; }
 // 头盔壳已搁置：永远不显示
 function applyShellVisibility() { shell.visible = false; }
@@ -915,8 +977,8 @@ async function playGeneration(mode) {
   }
   // 二、定点：支撑落点怎么选——按耐受度打分（+ 后脑支撑的高度偏好）→ 前 5% 当候选 → 取最高 → 排除圈 → 重复（red plate 选法）
   if (mode !== "short" && plates.length) {
-    const denKey = document.getElementById("sel-den").value, posKey = document.getElementById("sel-pos").value;
-    const R = PLATE_R[denKey] || 90, bias = PLATE_BIAS[posKey] || PLATE_BIAS.mid;
+    const posKey = document.getElementById("sel-pos").value;
+    const R = (currentEntry && currentEntry.slider) ? currentEntry.slider.dist : sliderState.dist, bias = PLATE_BIAS[posKey] || PLATE_BIAS.mid;
     const cands = plateCandidates(bias, posKey);
     say("2 · Points — rank the skin by tolerance: the most tolerant 5% are candidates for support");
     showCandidates(cands);
@@ -1039,7 +1101,7 @@ async function loadVariant() {
   firstGeneration = false;
   status.textContent = "up to date";
 }
-document.getElementById("sel-pos").addEventListener("change", () => { loadVariant(); writeUrlState(); });
+document.getElementById("sel-pos").addEventListener("change", () => { snapSliders(); loadVariant(); writeUrlState(); });
 async function ensureVariantCached(key) {
   // 只把几何载进缓存，不换场景——换压力图前先预载，之后 loadVariant 命中缓存就是同步换
   if (!manifest || variantCache[key]) return;
@@ -1063,7 +1125,6 @@ document.getElementById("sel-map").addEventListener("change", async () => {
   await applyPdtMap(key);
   loadVariant(); writeUrlState();
 });
-document.getElementById("sel-den").addEventListener("change", () => { loadVariant(); writeUrlState(); });
 
 // 九宫格：行 = 后脑支撑位置，列 = 疏密；每格用同一台相机离屏渲染一次
 async function renderGrid() {
@@ -1715,7 +1776,7 @@ function placeTags() {
 await applyPdtMap(document.getElementById("sel-map").value);
 if (document.getElementById("chk-pdt").checked) { headPointsGeo.setAttribute("color", pdt); headSolid.material = headPdtMat; }
 updateLegend(document.getElementById("sel-map").value);
-if (manifest) { await loadVariant(); } else {
+if (manifest) { snapSliders(); await loadVariant(); } else {
   status.textContent = "no variant files — showing May 2026 output";
 }
 document.getElementById("btn-reset").addEventListener("click", () => {
@@ -1726,7 +1787,7 @@ document.getElementById("btn-reset").addEventListener("click", () => {
   frame.visible = lens.visible = true; seal.visible = false; overlay.visible = false;
   document.getElementById("tint").value = "smoke"; lens.material = lensMats.smoke;
   document.getElementById("finish").value = "matte"; frame.material = finishes.matte; bead.material = finishes.matte;
-  document.getElementById("sel-pos").value = "mid"; document.getElementById("sel-den").value = "mid";
+  document.getElementById("sel-pos").value = "mid"; sliderState.count = 6; sliderState.dist = 90; snapSliders();
   loadVariant();
   setView("iso", true);
   writeUrlState();
@@ -1785,7 +1846,7 @@ function makeDropdown(sel) {
 function closeDropdowns() { Object.values(dropdowns).forEach((d) => d.wrap.classList.remove("open")); }
 document.addEventListener("click", closeDropdowns);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDropdowns(); });
-["sel-map", "sel-pos", "sel-den", "finish", "tint"].forEach((id) => makeDropdown(document.getElementById(id)));
+["sel-map", "sel-pos", "finish", "tint"].forEach((id) => makeDropdown(document.getElementById(id)));
 
 // 演示模式 ?demo=1：页内光标按真人节奏移动、点击控件，给录屏用；window.__demoDone 变 true 表示结束
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1831,7 +1892,17 @@ async function demoPick(selectId, value) {
   cursorPulse(); await sleep(110);
   items[target].click(); await sleep(300);
 }
-window.__demoPick = demoPick; window.__moveCursorTo = moveCursorTo; window.__demoCheck = demoCheck;
+async function demoSlide(axis, target) {
+  // 光标走到圆点，按下，拖到目标刻度（拖的过程只动视觉，松手时吸附并换成品）
+  const nb = nbars[axis]; const r = nb.track.getBoundingClientRect();
+  const x0 = r.left + (sliderState[axis] - nb.lo) / (nb.hi - nb.lo) * r.width, x1 = r.left + (target - nb.lo) / (nb.hi - nb.lo) * r.width, y = r.top + r.height / 2;
+  const at = (x) => ({ getBoundingClientRect: () => ({ left: x - 1, top: y - 1, width: 2, height: 2 }) });
+  await moveCursorTo(at(x0), 600); await sleep(120); cursorPulse(); await sleep(80);
+  const v0 = sliderState[axis];
+  await animate(650, (e) => { cur.x = x0 + (x1 - x0) * e; placeCursor(); const v = v0 + (target - v0) * e; nb.thumb.style.left = ((v - nb.lo) / (nb.hi - nb.lo) * 100) + "%"; nb.val.textContent = axis === "dist" ? Math.round(v) + " mm" : String(Math.round(v)); });
+  setSlider(axis, target); await sleep(260);
+}
+window.__demoPick = demoPick; window.__moveCursorTo = moveCursorTo; window.__demoCheck = demoCheck; window.__demoSlide = demoSlide;
 async function demoProbeSweep() {
   // 把当前变体的几个支撑落点投到屏幕，光标依次停上去，读数跟着出来
   const pts = anchorItems.filter((it) => it.el).slice(0, 3);
@@ -1862,6 +1933,8 @@ async function runDemo() {
   setView("iso", false);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.6;
   cancelGeneration();
+  // 白幕多停 0.8 s：录屏按 0.5 s 轮询到 demo 开始再裁剪，这样裁剪点一定落在白幕内，0:00 不会露出扫描进行到一半的帧
+  await sleep(800);
   const intro = playGeneration("intro");          // 同步前奏已把舞台收成起始状态，再揭白幕
   document.body.classList.remove("predemo");
   await intro;
@@ -1881,8 +1954,8 @@ async function runDemo() {
   await demoCheck("chk-pdt"); await sleep(900); await demoCheck("chk-pdt"); await sleep(300);
   caption("Back support: where the structure anchors behind the head");
   await demoPick("sel-pos", "high"); await sleep(1300);
-  caption("Density: how many support points");
-  await demoPick("sel-den", "dense"); await sleep(1300);
+  caption("Support points and spacing: drag, it snaps to a solved structure");
+  await demoSlide("count", 9); await sleep(900); await demoSlide("dist", 45); await sleep(1100);
   caption("Views");
   await demoView("front"); await sleep(750); await demoView("side"); await sleep(750); await demoView("top"); await sleep(750); await demoView("iso"); await sleep(450);
   caption("Finish and lens");
@@ -1897,7 +1970,7 @@ async function runDemo() {
   await cursorClick(btn("btn-grid-close")); await sleep(400);
   caption("Another person, the lightest structure");
   await demoPick("sel-map", "p15"); await sleep(1200);
-  await demoPick("sel-den", "sparse"); await demoPick("sel-pos", "low"); await sleep(1400);
+  await demoSlide("count", 3); await demoPick("sel-pos", "low"); await sleep(1400);
   caption("Reset");
   await cursorClick(btn("btn-reset")); await sleep(1400);
   suppressRegen = false;
