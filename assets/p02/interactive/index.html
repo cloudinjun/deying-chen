@@ -2030,26 +2030,13 @@ async function runDemo() {
   gridGroup.visible = true;
   caption("Five heads — the same settings in every row, spacing 70 mm");
   gridCamera(2 * DX, -0.5 * DZ, 2050, 1400); await sleep(1400 + 4500);
-  // 推近到 Participant 15 · 9 点那一格，再无缝换成主模型（相机整体平移回原点；主头暂用去脖子几何）
-  caption("Printed frame, standard lens, one per head");
-  const cx = 4 * DX, cz = -DZ;
-  for (const g of gridGroup.children) if (Math.abs(g.position.x - (cx + headPivot.x)) < 1 && Math.abs(g.position.z - cz) < 1) g.userData.settle = true;   // 目标格转回正角度
-  gridCamera(cx, cz, 700, 1500); await sleep(1600);
-  await switchMap("p15"); await pureVariant(9, 70, "mid");
-  headSolid.geometry = trimmedHeadGeo(colors.p15);
-  clearGridScene(); hideMain(false);
-  const off = new THREE.Vector3(cx, cz, 0); camera.position.sub(off); controls.target.sub(off); controls.update();
-  await sleep(600);
-  setView("front", true); await sleep(1300);
-  setSelect("tint", "mirror"); await sleep(1400);
-  setView("iso", true); await sleep(800);
-  controls.autoRotate = true; controls.autoRotateSpeed = 0.9; await sleep(3500);
-  controls.autoRotate = false;
-  caption(""); await sleep(300);
-  headSolid.geometry = headGeo;
-  suppressRegen = false;
+  // 结尾：不推近，整排头集体自转再多停一会儿，淡出
+  await sleep(3000);
+  caption(""); await sleep(600);
   window.__demoDone = true;
-  await sleep(2500);                               // 录屏在 done 后还收 1 s，面板等那之后再回来，结尾不会闪出 UI
+  await sleep(2500);                               // 录屏在 done 后还收 1 s，淡出期间网格还在转
+  clearGridScene(); hideMain(false);
+  suppressRegen = false;
   document.body.classList.remove("demo", "nocursor");
 }
 window.__demo = runDemo;
