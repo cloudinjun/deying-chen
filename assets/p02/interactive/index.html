@@ -455,7 +455,7 @@ async function loadPdtMap(key) {
   return pdtCache[key];
 }
 const pdtMeta = await fetch("assets/pdt/pdt_maps.json?v=" + CACHE_TAG).then((r) => r.json()).catch(() => null);
-let pdtValues = null;        // 当前图逐顶点数值（kPa）
+let pdtValues = null;        // 当前图逐顶点数值（N，ø10 mm 探头的压力阈值）
 let pdtFeatures = null;      // 当前图的真实候选集（GH 导出的 <key>_features.json）
 function pdtScale(key) {
   const sc = pdtMeta && ((pdtMeta.scales || {})[key] || pdtMeta.scale);
@@ -759,12 +759,12 @@ renderer.localClippingEnabled = true;
 const wipePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1000);
 headPdtMat.clippingPlanes = [wipePlane]; headPdtMat.needsUpdate = true;
 const headWipe = new THREE.Mesh(headGeo, headPdtMat); headWipe.visible = false; headWipe.renderOrder = 1; root.add(headWipe);
-// 测点：头上均匀撒 ~22 个有数值的顶点（按高度分层、固定种子），弹出时带 kPa 标签
+// 测点：头上均匀撒 ~22 个有数值的顶点（按高度分层、固定种子），弹出时带 N 标签
 const probeGroup = new THREE.Group(); root.add(probeGroup);
 const emitGroup = new THREE.Group(); emitGroup.visible = false; root.add(emitGroup);   // 扫描发射点标记
 const probeLayer = document.getElementById("probetags");
 let probeTags = [];
-// 分析阶段的读数点：五官地标按名字标（nose 6.1 kPa），再加头部分区的均值（crown 16.8 kPa），比散点数字好读
+// 分析阶段的读数点：五官地标按名字标（nose 6.1 N），再加头部分区的均值（crown 16.8 N），比散点数字好读
 const LANDMARK_NAMES = { anchor_nose: "nose", anchor_leye: "left eye", anchor_reye: "right eye", anchor_lear: "left ear", anchor_rear: "right ear", anchor_cheeks: "cheek", anchor_chin: "chin", anchor_backanchor: "back of head" };
 const ZONES = [   // 模型坐标：脸朝 -Y，z 向上；每区 [名字, 判定函数]
   ["crown", (x, y, z) => z > 110],
@@ -935,7 +935,7 @@ async function playGeneration(mode) {
   const lensWasVisible = lens.visible; lens.visible = false; lens.position.y = -60;
   tagLayer.style.opacity = "0";
   landmarkGroup.visible = false;
-  // 一、分析：扫描点云从下往上扫出 → 浮现素色壳 → 逐点测 PDT（kPa 读数弹出）→ 压力图从头顶往下擦入
+  // 一、分析：扫描点云从下往上扫出 → 浮现素色壳 → 逐点测 PDT（N 读数弹出）→ 压力图从头顶往下擦入
   if (T.hold) {
     const pdtOn = document.getElementById("chk-pdt").checked;
     const ptsWas = headPoints.visible, shellWas = headSolid.visible;
@@ -1325,7 +1325,7 @@ function probeAt(clientX, clientY) {
   const v = pdtValues[best];
   const sr = stage.getBoundingClientRect();
   probeEl.style.left = (clientX - sr.left) + "px"; probeEl.style.top = (clientY - sr.top) + "px";
-  probeEl.innerHTML = v > 0 ? tolHTML(v) + ' <span class="sub">' + v.toFixed(1) + " kPa</span>" : "no data";
+  probeEl.innerHTML = v > 0 ? tolHTML(v) + ' <span class="sub">' + v.toFixed(1) + " N</span>" : "no data";   // 数据集单位是牛顿（ø10 mm 探头）
   probeEl.classList.add("on");
   return v;
 }

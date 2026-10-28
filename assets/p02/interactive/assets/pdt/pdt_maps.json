@@ -41,7 +41,7 @@
    "vmax": 10.07
   }
  },
- "unit": "kPa",
+ "unit": "N",
  "head_vertices": 10152,
  "points": 60000
 }
